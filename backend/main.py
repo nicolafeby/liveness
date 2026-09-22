@@ -4,7 +4,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from challenge import SessionStore, TTL_SECONDS
+from challenge import ChallengeStage, SessionStore, TTL_SECONDS
 from detector import Detector
 from responses import (http_exception_handler, success,
                        unexpected_exception_handler, validation_exception_handler)
@@ -61,7 +61,7 @@ async def stream_frames(websocket: WebSocket, session_id: str):
     if state is None:
         await websocket.close(code=4404, reason="Sesi tidak ditemukan atau kedaluwarsa")
         return
-    if state["status"] in ("passed", "failed"):
+    if ChallengeStage(state["status"]).is_finished:
         await websocket.close(code=4409, reason="Sesi sudah selesai")
         return
     await websocket.accept()
@@ -90,7 +90,7 @@ async def stream_frames(websocket: WebSocket, session_id: str):
                 break
             await websocket.send_json({"success": True, "message": "Frame berhasil diproses",
                                        "data": result, "errors": None})
-            if result["status"] in ("passed", "failed"):
+            if ChallengeStage(result["status"]).is_finished:
                 await websocket.close(code=1000)
                 break
     except WebSocketDisconnect:

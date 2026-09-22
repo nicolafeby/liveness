@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:liveness/liveness/models/liveness_result.dart';
+import 'package:liveness/liveness/models/liveness_session.dart';
 
 import 'alice_inspector.dart';
 
@@ -20,14 +22,14 @@ class LivenessApi {
     ),
   )..interceptors.addAll(_enableAlice ? [createAliceDioAdapter()] : []);
 
-  Future<Map<String, dynamic>> createSession() async {
+  Future<LivenessSession> createSession() async {
     try {
       final response = await _dio.post<Map<String, dynamic>>('/sessions');
       final body = response.data;
       if (body == null || body['success'] != true || body['data'] is! Map) {
         throw LivenessApiException(body?['message'] as String? ?? 'Respons server tidak valid');
       }
-      return Map<String, dynamic>.from(body['data'] as Map);
+      return LivenessSession.fromJson(Map<String, dynamic>.from(body['data'] as Map));
     } on DioException catch (error) {
       final body = error.response?.data;
       final message = body is Map ? body['message'] : null;
@@ -65,13 +67,13 @@ class LivenessStream {
 
   Future<void> ready() async => _next();
 
-  Future<Map<String, dynamic>> submitFrame(List<int> jpeg) async {
+  Future<LivenessResult> submitFrame(List<int> jpeg) async {
     if (_closed) throw const LivenessApiException('Koneksi sesi sudah ditutup');
     _socket.add(jpeg);
     return _next();
   }
 
-  Future<Map<String, dynamic>> _next() async {
+  Future<LivenessResult> _next() async {
     final hasMessage = await _messages.moveNext().timeout(const Duration(seconds: 10));
     if (!hasMessage) {
       throw const LivenessApiException('Koneksi sesi terputus');
@@ -84,7 +86,11 @@ class LivenessStream {
     if (json['success'] != true) {
       throw LivenessApiException(json['message'] as String? ?? 'Frame tidak dapat diproses');
     }
-    return json['data'] as Map<String, dynamic>;
+    final data = json['data'];
+    if (data is! Map) {
+      throw const LivenessApiException('Respons server tidak valid');
+    }
+    return LivenessResult.fromJson(Map<String, dynamic>.from(data));
   }
 
   Future<void> close() async {

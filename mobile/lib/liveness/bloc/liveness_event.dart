@@ -1,3 +1,5 @@
+import 'package:liveness/liveness/models/liveness_result.dart';
+
 sealed class LivenessEvent {}
 
 final class CameraStarted extends LivenessEvent {}
@@ -7,10 +9,9 @@ final class CameraPaused extends LivenessEvent {}
 final class CameraRetried extends LivenessEvent {}
 
 final class FrameResultReceived extends LivenessEvent {
-  FrameResultReceived(this.generation, this.instruction, this.status);
+  FrameResultReceived(this.generation, this.result);
   final int generation;
-  final String instruction;
-  final String status;
+  final LivenessResult result;
 }
 
 final class SessionFailed extends LivenessEvent {

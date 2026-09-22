@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liveness/core/liveness_api.dart';
+import 'package:liveness/liveness/models/liveness_status.dart';
 
 void main() {
   test('creates an HTTP session and exchanges binary frames over WebSocket', () async {
@@ -17,7 +18,14 @@ void main() {
           request.response.write(
             jsonEncode({
               'success': true,
-              'data': {'session_id': 'test-session', 'instruction': 'Hadap kamera'},
+              'data': {
+                'session_id': 'test-session',
+                'expires_in_seconds': 120,
+                'status': 'align',
+                'passed': false,
+                'instruction': 'Posisikan wajah',
+                'frames_processed': 0,
+              },
             }),
           );
           await request.response.close();
@@ -28,7 +36,12 @@ void main() {
         socket.add(
           jsonEncode({
             'success': true,
-            'data': {'status': 'open'},
+            'data': {
+              'status': 'align',
+              'passed': false,
+              'instruction': 'Posisikan wajah',
+              'frames_processed': 0,
+            },
           }),
         );
         await for (final frame in socket) {
@@ -36,7 +49,12 @@ void main() {
           socket.add(
             jsonEncode({
               'success': true,
-              'data': {'status': 'passed', 'instruction': 'Tantangan selesai'},
+              'data': {
+                'status': 'passed',
+                'passed': true,
+                'instruction': 'Tantangan selesai',
+                'frames_processed': 1,
+              },
             }),
           );
           await socket.close();
@@ -48,9 +66,15 @@ void main() {
     final api = LivenessApi(baseUrl: 'http://127.0.0.1:${server.port}', enableAlice: false);
     try {
       final session = await api.createSession();
-      final stream = await api.connect(session['session_id'] as String);
+      expect(session.sessionId, 'test-session');
+      expect(session.result.status, LivenessStatus.align);
+      expect(session.toJson()['status'], 'align');
+      expect(session.toJson()['session_id'], 'test-session');
+      final stream = await api.connect(session.sessionId);
       final result = await stream.submitFrame([0xff, 0xd8, 0xff]);
-      expect(result['status'], 'passed');
+      expect(result.status, LivenessStatus.passed);
+      expect(result.passed, isTrue);
+      expect(result.toJson()['frames_processed'], 1);
       await stream.close();
       await Future.wait(handled);
     } finally {

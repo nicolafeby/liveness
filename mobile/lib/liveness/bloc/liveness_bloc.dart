@@ -20,7 +20,7 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
     });
     on<FrameResultReceived>((event, emit) {
       if (event.generation != _generation) return;
-      emit(LivenessState(camera: state.camera, instruction: event.instruction, status: event.status));
+      emit(LivenessState(camera: state.camera, instruction: event.result.instruction, status: event.result.status));
     });
     on<SessionFailed>((event, emit) {
       if (event.generation != _generation) return;
@@ -65,20 +65,14 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
         await controller.dispose();
         return;
       }
-      final stream = await _api.connect(session['session_id'] as String);
+      final stream = await _api.connect(session.sessionId);
       if (isClosed || emit.isDone || generation != _generation) {
         await stream.close();
         await controller.dispose();
         return;
       }
       _stream = stream;
-      emit(
-        LivenessState(
-          camera: controller,
-          instruction: session['instruction'] as String?,
-          status: session['status'] as String?,
-        ),
-      );
+      emit(LivenessState(camera: controller, instruction: session.result.instruction, status: session.result.status));
       unawaited(_captureLoop(controller, stream, generation));
     } catch (error) {
       await controller?.dispose();
@@ -99,9 +93,8 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
         if (isClosed || generation != _generation) return;
         final result = await stream.submitFrame(await image.readAsBytes());
         if (isClosed || generation != _generation) return;
-        final status = result['status'] as String;
-        add(FrameResultReceived(generation, result['instruction'] as String, status));
-        if (status == 'passed' || status == 'failed') {
+        add(FrameResultReceived(generation, result));
+        if (result.status.isFinished) {
           await stream.close();
           if (identical(_stream, stream)) _stream = null;
           return;

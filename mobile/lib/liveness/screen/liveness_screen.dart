@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:liveness/liveness/bloc/liveness_bloc.dart';
 import 'package:liveness/liveness/bloc/liveness_event.dart';
 import 'package:liveness/liveness/bloc/liveness_state.dart';
+import 'package:liveness/liveness/models/liveness_status.dart';
 
 class LivenessScreen extends StatefulWidget {
   const LivenessScreen({super.key});
@@ -134,17 +135,19 @@ class _LivenessScreenState extends State<LivenessScreen> with SingleTickerProvid
                           Text(
                             cameraError != null
                                 ? 'Periksa kamera dan koneksi backend lalu coba lagi'
-                                : state.status == 'passed'
+                                : state.status == LivenessStatus.passed
                                 ? 'Verifikasi berhasil'
-                                : state.status == 'failed'
+                                : state.status == LivenessStatus.failed
                                 ? 'Silakan coba lagi'
-                                : state.status == 'align'
+                                : state.status == LivenessStatus.align
                                 ? 'Ikuti petunjuk sampai wajah sejajar'
+                                : state.status == null
+                                ? 'Posisikan wajah di dalam bingkai'
                                 : 'Pertahankan wajah terlihat jelas',
                             textAlign: TextAlign.center,
                             style: const TextStyle(color: Color(0xFFDCE6E3), fontSize: 14),
                           ),
-                          if (cameraError != null || state.status == 'failed') ...[
+                          if (cameraError != null || state.status == LivenessStatus.failed) ...[
                             const SizedBox(height: 20),
                             TextButton(
                               onPressed: () => _bloc.add(CameraRetried()),

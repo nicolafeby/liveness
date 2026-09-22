@@ -33,6 +33,10 @@ samples, guidance on mobile development, and a full API reference.
 
 ## Backend liveness
 
+Model respons API memakai `json_serializable`. Setelah mengubah field atau anotasi di
+`lib/liveness/models/`, jalankan `flutter pub run build_runner build` dari direktori
+`mobile/` dan commit file `.g.dart` yang dihasilkan.
+
 Jalankan `./script/run-backend.sh` dari root proyek, lalu jalankan aplikasi pada perangkat Android yang terhubung melalui USB. Skrip mengaktifkan `adb reverse tcp:8000 tcp:8000`; aplikasi memakai `http://127.0.0.1:8000` secara default. Aplikasi membuat sesi, membuka WebSocket lalu mengirim foto JPEG kamera depan satu per satu setelah menerima respons server, dan menampilkan instruksi serta hasil dari backend. Ketuk **Coba lagi** untuk membuat sesi baru setelah gagal.
 
 Untuk perangkat lain, atur URL backend saat menjalankan Flutter, misalnya `flutter run --dart-define=LIVENESS_API_URL=http://192.168.1.10:8000`. Backend harus dapat diakses dari perangkat; untuk akses LAN jalankan uvicorn dengan `--host 0.0.0.0`. Gunakan HTTPS dan konfigurasi keamanan platform yang sesuai di luar lingkungan pengembangan lokal.
