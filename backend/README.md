@@ -11,10 +11,15 @@ cd backend
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload
+cd ..
+./script/run-backend.sh
 ```
 
-Dokumentasi interaktif: `http://127.0.0.1:8000/docs`.
+Hubungkan perangkat Android melalui USB, aktifkan USB debugging, dan pastikan `adb devices`
+menampilkan perangkat dengan status `device`. Skrip memasang `adb reverse tcp:8000 tcp:8000`
+sebelum menjalankan backend di loopback. Jika perangkat dilepas atau ADB terputus, jalankan ulang skrip.
+
+Dokumentasi interaktif di komputer: `http://127.0.0.1:8000/docs`.
 
 ## API
 
@@ -22,6 +27,17 @@ Dokumentasi interaktif: `http://127.0.0.1:8000/docs`.
 2. `POST /sessions/{session_id}/frames` menerima multipart field `image` berupa JPEG/PNG (maksimal 5 MB). Kirim satu frame setiap minimal 80 ms sesuai `instruction` pada respons.
 3. Respons berhasil memiliki format `success`, `message`, `data`, `errors`. Status tantangan (`status`, `passed`, `instruction`, `frames_processed`) berada di dalam `data`. Sesi berhenti setelah berhasil, kedaluwarsa, atau 60 frame.
 4. `GET /health` untuk pemeriksaan proses.
+
+Alternatif untuk pengiriman frame berulang adalah WebSocket `WS /sessions/{session_id}/stream`.
+URL untuk Android melalui USB: `ws://127.0.0.1:8000/sessions/SESSION_ID/stream`.
+Pembuatan sesi dari Android memakai `http://127.0.0.1:8000/sessions`.
+Setelah `POST /sessions`, hubungkan ke URL tersebut. Server segera mengirim status sesi sebagai JSON
+dengan format `success`, `message`, `data`, `errors`. Kirim **satu frame JPEG/PNG sebagai pesan biner**,
+tunggu respons JSON, lalu kirim frame berikutnya dengan interval minimal 80 ms. Pesan teks atau gambar
+tidak valid mendapat respons `success: false`; koneksi tetap terbuka agar mobile dapat mencoba lagi.
+Sesi yang tidak ada atau kedaluwarsa ditutup dengan kode 4404, sesi yang sudah selesai dengan 4409,
+dan keberhasilan atau kegagalan tantangan menutup koneksi dengan kode 1000 setelah respons terakhir.
+Payload gambar maksimal 5 MB. Endpoint HTTP tetap tersedia.
 
 ```sh
 curl -X POST http://127.0.0.1:8000/sessions

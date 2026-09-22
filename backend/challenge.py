@@ -69,11 +69,18 @@ class SessionStore:
     def advance(self, session_id: str, observation: Observation) -> dict | None:
         with self._lock:
             session = self._sessions.get(session_id)
-            if session is None:
+            if session is None or monotonic() - session.created_at > TTL_SECONDS:
                 return None
             if session.stage in ("passed", "failed"):
                 return session.result()
             return session.advance(observation, monotonic())
+
+    def get(self, session_id: str) -> dict | None:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None or monotonic() - session.created_at > TTL_SECONDS:
+                return None
+            return session.result()
 
     def _prune(self):
         now = monotonic()
