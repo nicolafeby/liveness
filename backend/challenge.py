@@ -218,7 +218,7 @@ class Session:
                         self.stage = ChallengeStage.PASSED
                     else:
                         self.stage = ChallengeStage.FAILED
-                        return self.result("Pemeriksaan anti-spoofing belum meyakinkan; verifikasi gagal")
+                        return self.result("Verifikasi gagal, terdeteksi spoofing")
         return self.result()
 
     def result(self, message: str | None = None) -> dict:
