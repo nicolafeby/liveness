@@ -58,33 +58,53 @@ jobs:
       - name: Build Android APK
         run: flutter build apk --release
 
-      - name: Check distribution configuration
+      - name: Save APK for distribution
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-release-apk
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+  distribute:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: android
+    runs-on: [self-hosted, Linux, X64, research-liveness]
+    environment: research
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: mobile-release-apk
+          path: mobile/build/app/outputs/flutter-apk
+
+      - name: Check distribution configuration
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_TESTER_GROUPS: ${{ vars.FIREBASE_TESTER_GROUPS }}
         run: |
-          test -n "$FIREBASE_SERVICE_ACCOUNT" || { echo 'Set the FIREBASE_SERVICE_ACCOUNT repository secret'; exit 1; }
-          test -n "$FIREBASE_TESTER_GROUPS" || { echo 'Set the FIREBASE_TESTER_GROUPS repository variable'; exit 1; }
+          test -n "$FIREBASE_SERVICE_ACCOUNT" || { echo 'Set FIREBASE_SERVICE_ACCOUNT in the research environment'; exit 1; }
+          test -n "$FIREBASE_TESTER_GROUPS" || { echo 'Set FIREBASE_TESTER_GROUPS in the research environment'; exit 1; }
 
       - name: Authenticate to Firebase
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Set up Node.js
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
       - name: Install Firebase CLI
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: npm install --global firebase-tools
 
       - name: Distribute APK to testers
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           FIREBASE_TESTER_GROUPS: ${{ vars.FIREBASE_TESTER_GROUPS }}
         run: |
