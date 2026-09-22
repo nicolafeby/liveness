@@ -45,7 +45,7 @@ void main() {
       }());
     });
 
-    final api = LivenessApi(baseUrl: 'http://127.0.0.1:${server.port}');
+    final api = LivenessApi(baseUrl: 'http://127.0.0.1:${server.port}', enableAlice: false);
     try {
       final session = await api.createSession();
       final stream = await api.connect(session['session_id'] as String);

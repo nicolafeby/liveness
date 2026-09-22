@@ -3,31 +3,46 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 
+import 'alice_inspector.dart';
+
 class LivenessApi {
-  LivenessApi({String? baseUrl})
-    : _baseUrl = baseUrl ?? const String.fromEnvironment('LIVENESS_API_URL', defaultValue: 'http://127.0.0.1:8000');
+  LivenessApi({String? baseUrl, bool enableAlice = true})
+    : _baseUrl =
+          baseUrl ??
+          const String.fromEnvironment(
+            'LIVENESS_API_URL',
+            defaultValue: 'http://127.0.0.1:8000',
+          ),
+      _enableAlice = enableAlice;
 
   final String _baseUrl;
+  final bool _enableAlice;
   late final Dio _dio = Dio(
     BaseOptions(
       baseUrl: _baseUrl,
       connectTimeout: const Duration(seconds: 5),
       receiveTimeout: const Duration(seconds: 10),
     ),
-  );
+  )..interceptors.addAll(_enableAlice ? [createAliceDioAdapter()] : []);
 
   Future<Map<String, dynamic>> createSession() async {
     try {
       final response = await _dio.post<Map<String, dynamic>>('/sessions');
       final body = response.data;
       if (body == null || body['success'] != true || body['data'] is! Map) {
-        throw LivenessApiException(body?['message'] as String? ?? 'Respons server tidak valid');
+        throw LivenessApiException(
+          body?['message'] as String? ?? 'Respons server tidak valid',
+        );
       }
       return Map<String, dynamic>.from(body['data'] as Map);
     } on DioException catch (error) {
       final body = error.response?.data;
       final message = body is Map ? body['message'] : null;
-      throw LivenessApiException(message is String ? message : 'Kamera atau server tidak dapat dihubungi');
+      throw LivenessApiException(
+        message is String
+            ? message
+            : 'Kamera atau server tidak dapat dihubungi',
+      );
     }
   }
 
@@ -38,7 +53,9 @@ class LivenessApi {
       path:
           '${uri.path.endsWith('/') ? uri.path.substring(0, uri.path.length - 1) : uri.path}/sessions/$sessionId/stream',
     );
-    final socket = await WebSocket.connect(streamUri.toString()).timeout(const Duration(seconds: 5));
+    final socket = await WebSocket.connect(
+      streamUri.toString(),
+    ).timeout(const Duration(seconds: 5));
     final stream = LivenessStream(socket);
     try {
       await stream.ready();
@@ -68,7 +85,9 @@ class LivenessStream {
   }
 
   Future<Map<String, dynamic>> _next() async {
-    final hasMessage = await _messages.moveNext().timeout(const Duration(seconds: 10));
+    final hasMessage = await _messages.moveNext().timeout(
+      const Duration(seconds: 10),
+    );
     if (!hasMessage) {
       throw const LivenessApiException('Koneksi sesi terputus');
     }
@@ -78,7 +97,9 @@ class LivenessStream {
     }
     final json = jsonDecode(message) as Map<String, dynamic>;
     if (json['success'] != true) {
-      throw LivenessApiException(json['message'] as String? ?? 'Frame tidak dapat diproses');
+      throw LivenessApiException(
+        json['message'] as String? ?? 'Frame tidak dapat diproses',
+      );
     }
     return json['data'] as Map<String, dynamic>;
   }
