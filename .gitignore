@@ -6,3 +6,4 @@ __pycache__/
 .DS_Store
 mobile/.dart_tool/
 mobile/build/
+gha-creds-*.json

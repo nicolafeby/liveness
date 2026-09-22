@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "646237045829",
+    "project_id": "research-liveness",
+    "storage_bucket": "research-liveness.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:646237045829:android:c23335fa3aec2f82ab0f2c",
+        "android_client_info": {
+          "package_name": "id.nicolafsalv.liveness"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAhcn0ep7_SsRvDxXDEyaBZcKSq4jGNprQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
