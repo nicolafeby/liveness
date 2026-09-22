@@ -26,31 +26,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Find preinstalled Flutter on self-hosted runner
-        id: flutter-sdk
+      - name: Select Flutter with FVM on self-hosted runner
         if: github.event_name == 'push'
-        env:
-          FLUTTER_SDK_PATH: ${{ vars.FLUTTER_SDK_PATH }}
         run: |
-          if [ -n "$FLUTTER_SDK_PATH" ]; then
-            test -x "$FLUTTER_SDK_PATH/bin/flutter" || { echo "No executable bin/flutter in FLUTTER_SDK_PATH: $FLUTTER_SDK_PATH"; exit 1; }
-            candidate="$FLUTTER_SDK_PATH/bin/flutter"
-          else
-            candidate="$(command -v flutter || true)"
-          fi
-          if [ -n "$candidate" ]; then
-            version="$("$candidate" --version --machine | python3 -c 'import json, sys; print(json.load(sys.stdin)["frameworkVersion"])')"
-            if [ "$version" = '3.41.6' ]; then
-              echo "$(dirname "$candidate")" >> "$GITHUB_PATH"
-              echo 'found=true' >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            echo "Found Flutter $version; preparing Flutter 3.41.6"
-          fi
-          echo 'found=false' >> "$GITHUB_OUTPUT"
+          command -v fvm >/dev/null || { echo 'FVM is not on the runner PATH'; exit 1; }
+          fvm use 3.41.6 --skip-pub-get
+          test -x .fvm/flutter_sdk/bin/flutter || { echo 'FVM did not create .fvm/flutter_sdk/bin/flutter'; exit 1; }
+          echo "$PWD/.fvm/flutter_sdk/bin" >> "$GITHUB_PATH"
 
-      - name: Set up Flutter 3.41.6 when absent
-        if: github.event_name == 'pull_request' || steps.flutter-sdk.outputs.found != 'true'
+      - name: Set up Flutter for pull requests
+        if: github.event_name == 'pull_request'
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.41.6'
@@ -59,7 +44,7 @@ jobs:
 
       - name: Verify Flutter version
         run: |
-          flutter --version --machine | python3 -c 'import json, sys; version = json.load(sys.stdin)["frameworkVersion"]; print("Flutter", version); sys.exit(0 if version == "3.41.6" else "Expected Flutter 3.41.6; set repository variable FLUTTER_SDK_PATH to the installed SDK directory")'
+          flutter --version --machine | python3 -c 'import json, sys; version = json.load(sys.stdin)["frameworkVersion"]; print("Flutter", version); sys.exit(0 if version == "3.41.6" else "Expected Flutter 3.41.6")'
 
       - name: Install dependencies
         run: flutter pub get
