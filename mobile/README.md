@@ -4,7 +4,7 @@
 
 Workflow [mobile-firebase-distribution.yml](../.github/workflows/mobile-firebase-distribution.yml) berjalan saat file di `mobile/` berubah. Pull request menjalankan CI di runner GitHub agar kode PR tidak berjalan pada server sendiri. Semua push menjalankan `flutter analyze`, `flutter test`, dan build APK debug pada self-hosted runner Linux X64 berlabel `research-liveness` (`ncladrserver`). Push ke `main` juga mengunggah APK tersebut ke Firebase App Distribution.
 
-Runner harus tetap online dan memiliki Android SDK (termasuk build tools dan lisensi yang diperlukan), `git`, serta akses jaringan untuk mengunduh Flutter, Gradle, dan dependensi. Workflow menyiapkan Java 17, Flutter 3.41.6, dan Node.js 22; tidak memerlukan Flutter atau Firebase CLI yang sudah terpasang di runner. Cache GitHub Actions dimatikan karena versi runner belum diverifikasi; cache SDK pada mesin runner tetap dapat digunakan antar-job.
+Runner harus tetap online dan memiliki Android SDK (termasuk build tools dan lisensi yang diperlukan), `git`, Python 3, dan Flutter **3.41.6** pada `PATH` milik proses runner. Workflow memeriksa versi Flutter yang sudah terpasang dan tidak mengunduh Flutter untuk push. Pastikan `flutter --version --machine` dapat dijalankan oleh user yang menjalankan service runner; `PATH` pada service bisa berbeda dari terminal interaktif. Pull request tetap menyiapkan Flutter pada runner GitHub yang baru. Workflow juga menyiapkan Java 17 dan Node.js 22 serta mengunduh Gradle dan dependensi bila belum ada di cache.
 
 Siapkan distribusi satu kali:
 

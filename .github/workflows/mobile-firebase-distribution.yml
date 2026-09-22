@@ -27,10 +27,17 @@ jobs:
           java-version: '17'
 
       - uses: subosito/flutter-action@v2
+        if: github.event_name == 'pull_request'
         with:
           flutter-version: '3.41.6'
           channel: stable
           cache: false
+
+      - name: Check preinstalled Flutter on self-hosted runner
+        if: github.event_name == 'push'
+        run: |
+          command -v flutter >/dev/null || { echo 'Flutter is not on the runner PATH'; exit 1; }
+          flutter --version --machine | python3 -c 'import json, sys; version = json.load(sys.stdin)["frameworkVersion"]; print("Flutter", version); sys.exit(0 if version == "3.41.6" else "Expected Flutter 3.41.6")'
 
       - name: Install dependencies
         run: flutter pub get
