@@ -26,18 +26,40 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: subosito/flutter-action@v2
-        if: github.event_name == 'pull_request'
+      - name: Find preinstalled Flutter on self-hosted runner
+        id: flutter-sdk
+        if: github.event_name == 'push'
+        env:
+          FLUTTER_SDK_PATH: ${{ vars.FLUTTER_SDK_PATH }}
+        run: |
+          if [ -n "$FLUTTER_SDK_PATH" ]; then
+            test -x "$FLUTTER_SDK_PATH/bin/flutter" || { echo "No executable bin/flutter in FLUTTER_SDK_PATH: $FLUTTER_SDK_PATH"; exit 1; }
+            candidate="$FLUTTER_SDK_PATH/bin/flutter"
+          else
+            candidate="$(command -v flutter || true)"
+          fi
+          if [ -n "$candidate" ]; then
+            version="$("$candidate" --version --machine | python3 -c 'import json, sys; print(json.load(sys.stdin)["frameworkVersion"])')"
+            if [ "$version" = '3.41.6' ]; then
+              echo "$(dirname "$candidate")" >> "$GITHUB_PATH"
+              echo 'found=true' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Found Flutter $version; preparing Flutter 3.41.6"
+          fi
+          echo 'found=false' >> "$GITHUB_OUTPUT"
+
+      - name: Set up Flutter 3.41.6 when absent
+        if: github.event_name == 'pull_request' || steps.flutter-sdk.outputs.found != 'true'
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.41.6'
           channel: stable
           cache: false
 
-      - name: Check preinstalled Flutter on self-hosted runner
-        if: github.event_name == 'push'
+      - name: Verify Flutter version
         run: |
-          command -v flutter >/dev/null || { echo 'Flutter is not on the runner PATH'; exit 1; }
-          flutter --version --machine | python3 -c 'import json, sys; version = json.load(sys.stdin)["frameworkVersion"]; print("Flutter", version); sys.exit(0 if version == "3.41.6" else "Expected Flutter 3.41.6")'
+          flutter --version --machine | python3 -c 'import json, sys; version = json.load(sys.stdin)["frameworkVersion"]; print("Flutter", version); sys.exit(0 if version == "3.41.6" else "Expected Flutter 3.41.6; set repository variable FLUTTER_SDK_PATH to the installed SDK directory")'
 
       - name: Install dependencies
         run: flutter pub get
@@ -49,7 +71,7 @@ jobs:
         run: flutter test
 
       - name: Build Android APK
-        run: flutter build apk --debug
+        run: flutter build apk --release
 
       - name: Check distribution configuration
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -82,7 +104,7 @@ jobs:
           FIREBASE_TESTER_GROUPS: ${{ vars.FIREBASE_TESTER_GROUPS }}
         run: |
           app_id="$(python3 -c 'import json; print(json.load(open("android/app/google-services.json"))["client"][0]["client_info"]["mobilesdk_app_id"])')"
-          firebase appdistribution:distribute build/app/outputs/flutter-apk/app-debug.apk \
+          firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
             --app "$app_id" \
             --groups "$FIREBASE_TESTER_GROUPS" \
             --release-notes "GitHub commit ${GITHUB_SHA}"
