@@ -1,6 +1,10 @@
 import 'dart:math' as math;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:liveness/liveness/bloc/liveness_bloc.dart';
+import 'package:liveness/liveness/bloc/liveness_event.dart';
+import 'package:liveness/liveness/bloc/liveness_state.dart';
 
 class LivenessScreen extends StatefulWidget {
   const LivenessScreen({super.key});
@@ -9,50 +13,29 @@ class LivenessScreen extends StatefulWidget {
   State<LivenessScreen> createState() => _LivenessScreenState();
 }
 
-class _LivenessScreenState extends State<LivenessScreen> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  CameraController? _camera;
-  String? _cameraError;
+class _LivenessScreenState extends State<LivenessScreen>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  late final LivenessBloc _bloc;
   late final AnimationController _animation;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _animation = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))..repeat();
-    _startCamera();
-  }
-
-  Future<void> _startCamera() async {
-    try {
-      final cameras = await availableCameras();
-      if (!mounted) return;
-      final front = cameras.where((camera) => camera.lensDirection == CameraLensDirection.front);
-      if (front.isEmpty) {
-        setState(() => _cameraError = 'Kamera depan tidak tersedia');
-        return;
-      }
-      final controller = CameraController(front.first, ResolutionPreset.medium, enableAudio: false);
-      await controller.initialize();
-      if (!mounted) {
-        await controller.dispose();
-        return;
-      }
-      setState(() {
-        _camera = controller;
-        _cameraError = null;
-      });
-    } catch (_) {
-      if (mounted) setState(() => _cameraError = 'Kamera tidak dapat dibuka');
-    }
+    _bloc = LivenessBloc()..add(CameraStarted());
+    _animation = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
-      _camera?.dispose();
-      _camera = null;
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      _bloc.add(CameraPaused());
     } else if (state == AppLifecycleState.resumed) {
-      _startCamera();
+      _bloc.add(CameraStarted());
     }
   }
 
@@ -60,13 +43,21 @@ class _LivenessScreenState extends State<LivenessScreen> with SingleTickerProvid
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _animation.dispose();
-    _camera?.dispose();
+    _bloc.close();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) {
-    final camera = _camera;
+  Widget build(BuildContext context) => BlocProvider.value(
+    value: _bloc,
+    child: BlocBuilder<LivenessBloc, LivenessState>(
+      builder: (context, state) => _buildScreen(context, state),
+    ),
+  );
+
+  Widget _buildScreen(BuildContext context, LivenessState state) {
+    final camera = state.camera;
+    final cameraError = state.error;
     return Scaffold(
       backgroundColor: const Color(0xFF121B1B),
       body: Stack(
@@ -105,7 +96,11 @@ class _LivenessScreenState extends State<LivenessScreen> with SingleTickerProvid
                 return Stack(
                   children: [
                     Positioned.fill(
-                      child: CustomPaint(painter: _OutsideShadePainter(faceSize: Size(faceWidth, faceHeight))),
+                      child: CustomPaint(
+                        painter: _OutsideShadePainter(
+                          faceSize: Size(faceWidth, faceHeight),
+                        ),
+                      ),
                     ),
                     Positioned(
                       top: 16,
@@ -124,7 +119,9 @@ class _LivenessScreenState extends State<LivenessScreen> with SingleTickerProvid
                           height: faceHeight,
                           child: AnimatedBuilder(
                             animation: _animation,
-                            builder: (context, _) => CustomPaint(painter: _FaceGuidePainter(_animation.value)),
+                            builder: (context, _) => CustomPaint(
+                              painter: _FaceGuidePainter(_animation.value),
+                            ),
                           ),
                         ),
                       ),
@@ -137,28 +134,36 @@ class _LivenessScreenState extends State<LivenessScreen> with SingleTickerProvid
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            _cameraError ?? 'Tahan wajah tetap diam',
+                            cameraError ?? 'Tahan wajah tetap diam',
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 22,
                               fontWeight: FontWeight.w600,
-                              shadows: [Shadow(blurRadius: 12, color: Colors.black)],
+                              shadows: [
+                                Shadow(blurRadius: 12, color: Colors.black),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 9),
                           Text(
-                            _cameraError == null
+                            cameraError == null
                                 ? 'Posisikan wajah di dalam bingkai'
                                 : 'Periksa izin kamera lalu coba lagi',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: Color(0xFFDCE6E3), fontSize: 14),
+                            style: const TextStyle(
+                              color: Color(0xFFDCE6E3),
+                              fontSize: 14,
+                            ),
                           ),
-                          if (_cameraError != null) ...[
+                          if (cameraError != null) ...[
                             const SizedBox(height: 20),
                             TextButton(
-                              onPressed: _startCamera,
-                              child: const Text('Coba lagi', style: TextStyle(color: Color(0xFF69DCCA))),
+                              onPressed: () => _bloc.add(CameraRetried()),
+                              child: const Text(
+                                'Coba lagi',
+                                style: TextStyle(color: Color(0xFF69DCCA)),
+                              ),
                             ),
                           ],
                         ],
@@ -182,7 +187,10 @@ class _OutsideShadePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final faceOffset = Offset((size.width - faceSize.width) / 2, (size.height - faceSize.height) / 2 - 35);
+    final faceOffset = Offset(
+      (size.width - faceSize.width) / 2,
+      (size.height - faceSize.height) / 2 - 35,
+    );
     final shade = Path()
       ..fillType = PathFillType.evenOdd
       ..addRect(Offset.zero & size)
@@ -191,7 +199,8 @@ class _OutsideShadePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_OutsideShadePainter oldDelegate) => oldDelegate.faceSize != faceSize;
+  bool shouldRepaint(_OutsideShadePainter oldDelegate) =>
+      oldDelegate.faceSize != faceSize;
 }
 
 class _FaceGuidePainter extends CustomPainter {
@@ -219,7 +228,10 @@ class _FaceGuidePainter extends CustomPainter {
         ..strokeCap = StrokeCap.round,
     );
     final metric = path.computeMetrics().first;
-    final sweep = metric.extractPath(metric.length * progress, metric.length * math.min(progress + .14, 1));
+    final sweep = metric.extractPath(
+      metric.length * progress,
+      metric.length * math.min(progress + .14, 1),
+    );
     canvas.drawPath(
       sweep,
       Paint()
@@ -249,5 +261,6 @@ class _FaceGuidePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_FaceGuidePainter oldDelegate) => oldDelegate.progress != progress;
+  bool shouldRepaint(_FaceGuidePainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }
