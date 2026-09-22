@@ -37,6 +37,9 @@ jobs:
           else
             export PATH="$HOME/.pub-cache/bin:$HOME/.local/bin:$PATH"
             fvm_cmd="$(command -v fvm || true)"
+            if [ -z "$fvm_cmd" ] && [ -x /home/ncladr/fvm/bin/fvm ]; then
+              fvm_cmd=/home/ncladr/fvm/bin/fvm
+            fi
             test -n "$fvm_cmd" || { echo 'FVM not found. Set repository variable FVM_EXECUTABLE to its absolute path on the runner.'; exit 1; }
           fi
           "$fvm_cmd" use 3.41.6 --skip-pub-get
