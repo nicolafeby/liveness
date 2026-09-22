@@ -1,6 +1,6 @@
 # Backend liveness detection
 
-Prototipe API Python untuk tantangan kamera: mata terbuka → kedip (minimal dua frame) → mata terbuka → geser kepala dalam bingkai. Deteksi memakai Haar cascade OpenCV. Hasil `passed` hanya berarti urutan tantangan teramati. Video replay atau foto yang digerakkan dapat mengelabui pendekatan ini; jangan gunakan hasilnya sebagai satu-satunya dasar autentikasi atau KYC.
+Prototipe API Python untuk tantangan kamera: wajah di tengah selama dua frame → mata terbuka → kedip (minimal dua frame) → mata terbuka → geser kepala dalam bingkai. Deteksi memakai Haar cascade OpenCV. Penyelarasan memakai posisi dan ukuran kotak wajah pada gambar kamera; koordinat ini belum dikalibrasi terhadap crop preview dan bingkai panduan mobile. Hasil `passed` hanya berarti urutan tantangan teramati. Video replay atau foto yang digerakkan dapat mengelabui pendekatan ini; jangan gunakan hasilnya sebagai satu-satunya dasar autentikasi atau KYC.
 
 ## Menjalankan
 
@@ -47,7 +47,7 @@ curl -X POST -F 'image=@frame.jpg;type=image/jpeg' http://127.0.0.1:8000/session
 Contoh respons berhasil (`POST /sessions`):
 
 ```json
-{"success":true,"message":"Sesi berhasil dibuat","data":{"session_id":"...","expires_in_seconds":120,"status":"open","passed":false,"instruction":"Hadap kamera dengan kedua mata terbuka","frames_processed":0},"errors":null}
+{"success":true,"message":"Sesi berhasil dibuat","data":{"session_id":"...","expires_in_seconds":120,"status":"align","passed":false,"instruction":"Posisikan wajah di tengah bingkai","frames_processed":0},"errors":null}
 ```
 
 Contoh respons gagal validasi (HTTP 422):

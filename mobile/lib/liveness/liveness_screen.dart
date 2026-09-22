@@ -138,7 +138,9 @@ class _LivenessScreenState extends State<LivenessScreen> with SingleTickerProvid
                                 ? 'Verifikasi berhasil'
                                 : state.status == 'failed'
                                 ? 'Silakan coba lagi'
-                                : 'Posisikan wajah di dalam bingkai',
+                                : state.status == 'align'
+                                ? 'Ikuti petunjuk sampai wajah sejajar'
+                                : 'Pertahankan wajah terlihat jelas',
                             textAlign: TextAlign.center,
                             style: const TextStyle(color: Color(0xFFDCE6E3), fontSize: 14),
                           ),

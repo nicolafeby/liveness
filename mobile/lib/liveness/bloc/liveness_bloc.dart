@@ -3,12 +3,10 @@ import 'package:camera/camera.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:liveness/liveness/bloc/liveness_event.dart';
 import 'package:liveness/liveness/bloc/liveness_state.dart';
-import 'package:liveness/liveness/liveness_api.dart';
+import 'package:liveness/core/liveness_api.dart';
 
 class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
-  LivenessBloc({LivenessApi? api})
-    : _api = api ?? LivenessApi(),
-      super(const LivenessState()) {
+  LivenessBloc({LivenessApi? api}) : _api = api ?? LivenessApi(), super(const LivenessState()) {
     on<CameraStarted>((event, emit) => _start(emit));
     on<CameraRetried>((event, emit) => _start(emit));
     on<CameraPaused>((event, emit) async {
@@ -22,13 +20,7 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
     });
     on<FrameResultReceived>((event, emit) {
       if (event.generation != _generation) return;
-      emit(
-        LivenessState(
-          camera: state.camera,
-          instruction: event.instruction,
-          status: event.status,
-        ),
-      );
+      emit(LivenessState(camera: state.camera, instruction: event.instruction, status: event.status));
     });
     on<SessionFailed>((event, emit) {
       if (event.generation != _generation) return;
@@ -52,9 +44,7 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
     try {
       final cameras = await availableCameras();
       if (isClosed || emit.isDone || generation != _generation) return;
-      final front = cameras.where(
-        (camera) => camera.lensDirection == CameraLensDirection.front,
-      );
+      final front = cameras.where((camera) => camera.lensDirection == CameraLensDirection.front);
       if (front.isEmpty) {
         emit(const LivenessState(error: 'Kamera depan tidak tersedia'));
         return;
@@ -95,20 +85,14 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
       if (!isClosed && !emit.isDone && generation == _generation) {
         emit(
           LivenessState(
-            error: error is LivenessApiException
-                ? error.message
-                : 'Kamera atau server tidak dapat dihubungi',
+            error: error is LivenessApiException ? error.message : 'Kamera atau server tidak dapat dihubungi',
           ),
         );
       }
     }
   }
 
-  Future<void> _captureLoop(
-    CameraController camera,
-    LivenessStream stream,
-    int generation,
-  ) async {
+  Future<void> _captureLoop(CameraController camera, LivenessStream stream, int generation) async {
     while (!isClosed && generation == _generation) {
       try {
         final image = await camera.takePicture();
@@ -116,13 +100,7 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
         final result = await stream.submitFrame(await image.readAsBytes());
         if (isClosed || generation != _generation) return;
         final status = result['status'] as String;
-        add(
-          FrameResultReceived(
-            generation,
-            result['instruction'] as String,
-            status,
-          ),
-        );
+        add(FrameResultReceived(generation, result['instruction'] as String, status));
         if (status == 'passed' || status == 'failed') {
           await stream.close();
           if (identical(_stream, stream)) _stream = null;
@@ -132,12 +110,7 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
       } catch (error) {
         if (!isClosed && generation == _generation) {
           add(
-            SessionFailed(
-              generation,
-              error is LivenessApiException
-                  ? error.message
-                  : 'Gagal mengirim frame ke server',
-            ),
+            SessionFailed(generation, error is LivenessApiException ? error.message : 'Gagal mengirim frame ke server'),
           );
         }
         await stream.close();

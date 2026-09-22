@@ -28,4 +28,7 @@ class Detector:
         eyes = self.eye.detectMultiScale(upper, scaleFactor=1.1, minNeighbors=5,
                                          minSize=(max(12, w // 12), max(12, h // 12)))
         return Observation(face_count=1, eyes_visible=len(eyes) >= 2,
-                           face_center_x=(x + w / 2) / image.shape[1])
+                           face_center_x=(x + w / 2) / image.shape[1],
+                           face_center_y=(y + h / 2) / image.shape[0],
+                           face_width=w / image.shape[1],
+                           face_height=h / image.shape[0])

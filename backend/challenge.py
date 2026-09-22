@@ -8,13 +8,32 @@ from models import Observation
 
 TTL_SECONDS = 120
 MAX_FRAMES = 60
+ALIGNMENT_FRAMES = 2
+
+
+def alignment_instruction(observation: Observation) -> str | None:
+    """Return guidance until the detected face is well within the frame."""
+    if observation.face_width < 0.20 or observation.face_height < 0.25:
+        return "Dekatkan wajah ke kamera"
+    if observation.face_width > 0.70 or observation.face_height > 0.75:
+        return "Jauhkan wajah dari kamera"
+    if observation.face_center_x < 0.40 or observation.face_center_x - observation.face_width / 2 < 0.05:
+        return "Geser wajah ke kanan"
+    if observation.face_center_x > 0.60 or observation.face_center_x + observation.face_width / 2 > 0.95:
+        return "Geser wajah ke kiri"
+    if observation.face_center_y < 0.38 or observation.face_center_y - observation.face_height / 2 < 0.05:
+        return "Geser wajah ke bawah"
+    if observation.face_center_y > 0.62 or observation.face_center_y + observation.face_height / 2 > 0.95:
+        return "Geser wajah ke atas"
+    return None
 
 
 @dataclass
 class Session:
     created_at: float = field(default_factory=monotonic)
-    stage: str = "open"
+    stage: str = "align"
     baseline_x: float | None = None
+    aligned_frames: int = 0
     closed_frames: int = 0
     frames: int = 0
     last_frame_at: float = 0.0
@@ -28,7 +47,24 @@ class Session:
         self.last_frame_at = now
         self.frames += 1
         if observation.face_count != 1:
+            if self.stage == "align":
+                self.aligned_frames = 0
             return self.result("Pastikan tepat satu wajah terlihat")
+        if self.stage == "align":
+            guidance = alignment_instruction(observation)
+            if guidance is not None or not observation.eyes_visible:
+                self.aligned_frames = 0
+                return self.result(guidance or "Hadap kamera dengan kedua mata terbuka")
+            self.aligned_frames += 1
+            if self.aligned_frames >= ALIGNMENT_FRAMES:
+                self.stage = "open"
+            return self.result()
+        if self.stage == "open":
+            guidance = alignment_instruction(observation)
+            if guidance is not None:
+                self.stage = "align"
+                self.aligned_frames = 0
+                return self.result(guidance)
         if self.stage == "open" and observation.eyes_visible:
             self.baseline_x = observation.face_center_x
             self.stage = "blink"
@@ -45,10 +81,11 @@ class Session:
         return self.result()
 
     def result(self, message: str | None = None) -> dict:
-        prompts = {"open": "Hadap kamera dengan kedua mata terbuka",
+        prompts = {"align": "Posisikan wajah di tengah bingkai",
+                   "open": "Hadap kamera dengan kedua mata terbuka",
                    "blink": "Kedipkan mata", "reopen": "Buka kembali kedua mata",
                    "move": "Geser kepala ke kiri atau kanan dalam bingkai",
-                   "passed": "Tantangan selesai", "failed": "Tantangan gagal"}
+                   "passed": "Verifikasi selesai", "failed": "Verifikasi gagal"}
         return {"status": self.stage, "passed": self.stage == "passed",
                 "instruction": message or prompts[self.stage], "frames_processed": self.frames}
 

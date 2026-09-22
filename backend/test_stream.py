@@ -35,11 +35,12 @@ class StreamTests(unittest.TestCase):
         jpeg = b"\xff\xd8\xff" + b"frame"
         messages = [{"type": "websocket.receive", "text": "bad"},
                     {"type": "websocket.receive", "bytes": b"not an image"},
-                    *[{"type": "websocket.receive", "bytes": jpeg} for _ in range(5)]]
+                    *[{"type": "websocket.receive", "bytes": jpeg} for _ in range(7)]]
         socket = FakeWebSocket(messages)
-        observations = [Observation(1, True, .4), Observation(1, False, .4),
-                        Observation(1, False, .4), Observation(1, True, .4),
-                        Observation(1, True, .6)]
+        observations = [Observation(1, eyes, x, .5, .35, .45)
+                        for eyes, x in [(True, .5), (True, .5), (True, .5),
+                                        (False, .5), (False, .5), (True, .5),
+                                        (True, .7)]]
 
         async def run():
             with patch.object(main, "sessions", store), patch.object(
@@ -52,7 +53,7 @@ class StreamTests(unittest.TestCase):
 
         asyncio.run(run())
         self.assertTrue(socket.accepted)
-        self.assertEqual(socket.sent[0]["data"]["status"], "open")
+        self.assertEqual(socket.sent[0]["data"]["status"], "align")
         self.assertFalse(socket.sent[1]["success"])
         self.assertFalse(socket.sent[2]["success"])
         self.assertTrue(socket.sent[-1]["data"]["passed"])

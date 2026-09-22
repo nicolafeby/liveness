@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:liveness/liveness/liveness_api.dart';
+import 'package:liveness/core/liveness_api.dart';
 
 void main() {
   test('creates an HTTP session and exchanges binary frames over WebSocket', () async {
