@@ -6,6 +6,8 @@ Workflow [mobile-firebase-distribution.yml](../.github/workflows/mobile-firebase
 
 Runner harus tetap online dan memiliki Android SDK (termasuk build tools dan lisensi yang diperlukan), `git`, Python 3, serta FVM. Workflow mencari FVM pada `PATH`, `~/.pub-cache/bin`, `~/.local/bin`, dan path server `ncladrserver` `/home/ncladr/fvm/bin/fvm`. Jika FVM berpindah lokasi, buat GitHub Actions **repository variable** `FVM_EXECUTABLE` berisi path absolut ke file `fvm`; variable pada environment `research` tidak tersedia bagi job `ci`. Versi Flutter **3.41.6** dipatok di `.fvmrc`. Pada push, workflow menjalankan `fvm use 3.41.6 --skip-pub-get` dan memakai SDK yang dipilih FVM untuk semua step Flutter. FVM menggunakan cache SDK yang sudah ada dan hanya mengunduh jika versi tersebut belum terpasang. Variable `FLUTTER_SDK_PATH` tidak diperlukan. Pull request tetap menyiapkan Flutter pada runner GitHub yang baru. Workflow juga menyiapkan Java 17 dan Node.js 22 serta mengunduh Gradle dan dependensi bila belum ada di cache.
 
+Untuk distribusi, pasang Firebase CLI sekali pada self-hosted runner dengan `npm install --global firebase-tools@15.30.1` dan pastikan perintah `firebase` tersedia pada `PATH` akun yang menjalankan GitHub Actions runner. Job CD memeriksa `firebase --version` dan berhenti jika versinya bukan `15.30.1`; workflow tidak memasang ulang CLI pada setiap run. Jika versi CLI diperbarui, ubah versi pada runner dan langkah pemeriksaan workflow secara bersamaan.
+
 Siapkan distribusi satu kali:
 
 1. Buka Firebase Console, pilih project `research-liveness`, lalu buka **App Distribution** untuk aplikasi Android `id.nicolafsalv.liveness` dan klik **Get started**.
