@@ -1,6 +1,7 @@
 """State machine for a blink and movement challenge."""
 from dataclasses import dataclass, field
 from enum import Enum
+from statistics import median
 from threading import Lock
 from time import monotonic
 from uuid import uuid4
@@ -15,6 +16,8 @@ MAX_BLINK_SECONDS = 1.5
 MOVE_TRACKING_GRACE_SECONDS = 2.0
 TURN_YAW_DEGREES = 15.0
 FRONT_YAW_DEGREES = 8.0
+PASSIVE_MIN_SAMPLES = 5
+PASSIVE_LIVE_THRESHOLD = .5
 EYES_NOT_VISIBLE = "Mata belum terlihat jelas. Hadap kamera dan pastikan area mata tidak tertutup."
 BLINK_NOT_DETECTED = "Kedipan belum terdeteksi. Coba kedip sekali lagi."
 
@@ -82,6 +85,7 @@ class Session:
     move_tracking_lost_at: float | None = None
     frames: int = 0
     last_frame_at: float = 0.0
+    passive_samples: list[tuple[float, float, float]] = field(default_factory=list)
 
     def reset_tracking(self):
         self.stage = ChallengeStage.ALIGN
@@ -99,6 +103,7 @@ class Session:
         self.baseline_y = None
         self.baseline_width = None
         self.baseline_height = None
+        self.passive_samples.clear()
 
     def stable_face(self, observation: Observation) -> bool:
         return (self.baseline_y is not None
@@ -131,6 +136,12 @@ class Session:
             if observation.lighting == "dark":
                 return self.tracking_issue(now, "Wajah terlalu gelap, pindah ke tempat yang lebih terang")
             return self.tracking_issue(now, "Wajah terlalu terang, hindari cahaya langsung")
+        if observation.passive_scores is None:
+            return self.tracking_issue(now, "Frame berwarna diperlukan untuk pemeriksaan anti-spoofing")
+        if self.stage != ChallengeStage.MOVE and alignment_instruction(observation) is None:
+            self.passive_samples.append(observation.passive_scores)
+            if len(self.passive_samples) > 8:
+                self.passive_samples.pop(0)
         if self.stage == ChallengeStage.ALIGN:
             guidance = alignment_instruction(observation)
             if guidance is not None or not observation.eyes_visible:
@@ -202,7 +213,12 @@ class Session:
                 else:
                     self.returned_frames = 0
                 if self.returned_frames >= 2:
-                    self.stage = ChallengeStage.PASSED
+                    if (len(self.passive_samples) >= PASSIVE_MIN_SAMPLES
+                            and median(sample[1] for sample in self.passive_samples) >= PASSIVE_LIVE_THRESHOLD):
+                        self.stage = ChallengeStage.PASSED
+                    else:
+                        self.stage = ChallengeStage.FAILED
+                        return self.result("Pemeriksaan anti-spoofing belum meyakinkan; verifikasi gagal")
         return self.result()
 
     def result(self, message: str | None = None) -> dict:

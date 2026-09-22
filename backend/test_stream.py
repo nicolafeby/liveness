@@ -29,9 +29,9 @@ class FakeWebSocket:
 
 
 class StreamTests(unittest.TestCase):
-    def test_raw_luma_is_only_accepted_for_stream(self):
-        pixels = bytes([120]) * (200 * 200)
-        frame = b"LVY1" + (200).to_bytes(2, "big") * 2 + pixels
+    def test_raw_color_is_only_accepted_for_stream(self):
+        pixels = bytes([120]) * (200 * 200 * 3)
+        frame = b"LVC1" + (200).to_bytes(2, "big") * 2 + pixels
         with patch.object(main.detector, "observe", return_value=Observation(0)):
             self.assertEqual(main.observe_frame(frame, allow_luma=True).face_count, 0)
             with self.assertRaises(ValueError):
@@ -45,7 +45,7 @@ class StreamTests(unittest.TestCase):
                     {"type": "websocket.receive", "bytes": b"not an image"},
                     *[{"type": "websocket.receive", "bytes": jpeg} for _ in range(11)]]
         socket = FakeWebSocket(messages)
-        observations = [Observation(1, eyes, .5, .5, .35, .45, face_yaw=yaw)
+        observations = [Observation(1, eyes, .5, .5, .35, .45, face_yaw=yaw, passive_scores=(.005, .99, .005))
                         for eyes, yaw in [(True, None), (True, None), (True, None),
                                           (False, None), (True, None), (True, None),
                                           (True, 0), (True, 19), (True, 20),

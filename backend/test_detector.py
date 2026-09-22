@@ -1,4 +1,5 @@
 import unittest
+from threading import Lock
 
 import cv2
 import numpy as np
@@ -21,6 +22,7 @@ class DetectorTests(unittest.TestCase):
         detector.eye = FakeCascade([(10, 10, 20, 20), (40, 10, 20, 20)])
         detector.eye_glasses = FakeCascade([])
         detector.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
+        detector.passive_scores = lambda *args: (.005, .99, .005)
         return detector
 
     def test_reports_normalized_face_position_and_size(self):
@@ -43,19 +45,48 @@ class DetectorTests(unittest.TestCase):
             self.assertTrue(encoded)
             self.assertEqual(detector.observe(data.tobytes()).lighting, expected)
 
-    def test_observes_raw_luma_frame(self):
+    def test_observes_raw_color_frame(self):
         detector = self.detector_with_fixed_face()
-        pixels = bytes([120]) * (200 * 200)
-        frame = b"LVY1" + (200).to_bytes(2, "big") * 2 + pixels
+        pixels = bytes([120]) * (200 * 200 * 3)
+        frame = b"LVC1" + (200).to_bytes(2, "big") * 2 + pixels
         observation = detector.observe(frame)
         self.assertEqual(observation.face_count, 1)
         self.assertTrue(observation.eyes_visible)
         self.assertIsNone(observation.lighting)
+        self.assertEqual(observation.passive_scores, (.005, .99, .005))
 
-    def test_rejects_truncated_raw_luma_frame(self):
-        frame = b"LVY1" + (200).to_bytes(2, "big") * 2 + bytes(20)
+    def test_rejects_truncated_raw_color_frame(self):
+        frame = b"LVC1" + (200).to_bytes(2, "big") * 2 + bytes(20)
         with self.assertRaises(ValueError):
             Detector().observe(frame)
+
+    def test_rejects_legacy_luma_frame(self):
+        frame = b"LVY1" + (200).to_bytes(2, "big") * 2 + bytes([120]) * 40000
+        with self.assertRaisesRegex(ValueError, "berwarna"):
+            Detector().observe(frame)
+
+    def test_passive_model_returns_three_probabilities(self):
+        detector = Detector()
+        image = np.full((200, 200, 3), 120, dtype=np.uint8)
+        scores = detector.passive_scores(image, 60, 50, 80, 100)
+        self.assertEqual(len(scores), 3)
+        self.assertAlmostEqual(sum(scores), 1, places=5)
+
+    def test_passive_model_receives_unnormalized_crop_without_black_padding(self):
+        class FakeNet:
+            def setInput(self, blob):
+                self.blob = blob
+
+            def forward(self):
+                return np.array([[0, 1, 0]], dtype=np.float32)
+
+        detector = Detector.__new__(Detector)
+        detector.passive_net = FakeNet()
+        detector._passive_lock = Lock()
+        image = np.full((200, 200, 3), 120, dtype=np.uint8)
+        detector.passive_scores(image, 0, 0, 80, 100)
+        self.assertEqual(detector.passive_net.blob.shape, (1, 3, 80, 80))
+        self.assertTrue(np.all(detector.passive_net.blob == 120))
 
     def test_turn_mode_handles_frame_without_face(self):
         detector = Detector()

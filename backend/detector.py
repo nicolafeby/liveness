@@ -19,6 +19,8 @@ class Detector:
         model_path = Path(__file__).with_name("face_detection_yunet_2023mar.onnx")
         self.turn_detector = cv2.FaceDetectorYN.create(str(model_path), "", (320, 320), score_threshold=.7)
         self._turn_lock = Lock()
+        self.passive_net = cv2.dnn.readNetFromONNX(str(Path(__file__).with_name("minifasnet_v2.onnx")))
+        self._passive_lock = Lock()
         if self.face.empty() or self.eye.empty() or self.eye_glasses.empty():
             raise RuntimeError("OpenCV Haar cascade tidak tersedia")
 
@@ -64,8 +66,25 @@ class Detector:
             return "bright"
         return None
 
-    def observe_turn(self, luminance: np.ndarray) -> Observation:
-        image = cv2.cvtColor(luminance, cv2.COLOR_GRAY2BGR)
+    def passive_scores(self, image: np.ndarray, x: int, y: int, w: int, h: int) -> tuple[float, float, float]:
+        # Match the upstream 2.7x crop and unnormalized BGR float32 input.
+        height, width = image.shape[:2]
+        scale = min((height - 1) / h, (width - 1) / w, 2.7)
+        crop_w, crop_h = w * scale, h * scale
+        x0 = min(max(0, x + w / 2 - crop_w / 2), width - 1 - crop_w)
+        y0 = min(max(0, y + h / 2 - crop_h / 2), height - 1 - crop_h)
+        left, top = int(x0), int(y0)
+        right, bottom = int(x0 + crop_w), int(y0 + crop_h)
+        crop = image[top:bottom + 1, left:right + 1]
+        blob = cv2.dnn.blobFromImage(crop, scalefactor=1, size=(80, 80), swapRB=False)
+        with self._passive_lock:
+            self.passive_net.setInput(blob)
+            logits = self.passive_net.forward().reshape(-1)
+        probabilities = np.exp(logits - np.max(logits))
+        probabilities /= probabilities.sum()
+        return tuple(float(value) for value in probabilities)
+
+    def observe_turn(self, image: np.ndarray, luminance: np.ndarray) -> Observation:
         height, width = luminance.shape
         with self._turn_lock:
             self.turn_detector.setInputSize((width, height))
@@ -87,6 +106,7 @@ class Detector:
             face_height=(y1 - y0) / height,
             lighting=self.lighting_for_face(luminance, x0, y0, x1 - x0, y1 - y0),
             face_yaw=yaw,
+            passive_scores=self.passive_scores(image, x0, y0, x1 - x0, y1 - y0),
         )
 
     @staticmethod
@@ -103,25 +123,27 @@ class Detector:
         return degrees(atan2(2 * normalized_offset, 1))
 
     def observe(self, data: bytes, detect_turn: bool = False) -> Observation:
-        if data.startswith(b"LVY1"):
+        if data.startswith(b"LVC1"):
             if len(data) < 8:
-                raise ValueError("Frame luminans tidak valid")
+                raise ValueError("Frame warna tidak valid")
             width = int.from_bytes(data[4:6], "big")
             height = int.from_bytes(data[6:8], "big")
-            if min(width, height) < 100 or width * height > 5_000_000 or len(data) != 8 + width * height:
-                raise ValueError("Frame luminans tidak valid")
-            luminance = np.frombuffer(data, dtype=np.uint8, offset=8).reshape(height, width)
+            if min(width, height) < 100 or width * height > 1_500_000 or len(data) != 8 + 3 * width * height:
+                raise ValueError("Frame warna tidak valid")
+            image = np.frombuffer(data, dtype=np.uint8, offset=8).reshape(height, width, 3)
         else:
+            if data.startswith(b"LVY1"):
+                raise ValueError("Frame luminans tidak mendukung anti-spoofing; kirim frame berwarna")
             image = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
             if image is None:
                 raise ValueError("Gambar tidak valid atau terlalu kecil (minimal 100x100)")
-            luminance = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        luminance = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         if min(luminance.shape[:2]) < 100:
             raise ValueError("Gambar tidak valid atau terlalu kecil (minimal 100x100)")
         if luminance.shape[0] * luminance.shape[1] > 12_000_000:
             raise ValueError("Resolusi gambar terlalu besar")
         if detect_turn:
-            return self.observe_turn(luminance)
+            return self.observe_turn(image, luminance)
         gray = cv2.equalizeHist(luminance)
         faces = self.face.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(80, 80))
         if len(faces) != 1:
@@ -135,4 +157,5 @@ class Detector:
                            face_center_x=(x + w / 2) / luminance.shape[1],
                            face_center_y=(y + h / 2) / luminance.shape[0],
                            face_width=w / luminance.shape[1],
-                           face_height=h / luminance.shape[0], lighting=lighting)
+                           face_height=h / luminance.shape[0], lighting=lighting,
+                           passive_scores=self.passive_scores(image, x, y, w, h))

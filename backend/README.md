@@ -1,6 +1,8 @@
 # Backend liveness detection
 
-Prototipe API Python untuk tantangan kamera: wajah di tengah selama dua frame → mata terbuka → satu frame mata tertutup → mata terbuka lagi pada dua frame dalam 1,5 detik → menoleh sedikit ke kiri atau kanan pada dua frame → kembali menghadap kamera pada dua frame. Mobile memakai stream kamera agar dapat mengirim frame lebih sering selama tahap kedip. Deteksi wajah frontal, mata, dan pencahayaan tetap memakai OpenCV Haar; tahap menoleh memakai lima landmark mata dan hidung dari model YuNet OpenCV. Penyelarasan memakai posisi dan ukuran kotak wajah pada gambar kamera; koordinat ini belum dikalibrasi terhadap crop preview dan bingkai panduan mobile. Hasil `passed` hanya berarti urutan tantangan teramati. Video replay atau foto yang digerakkan dapat mengelabui pendekatan ini; jangan gunakan hasilnya sebagai satu-satunya dasar autentikasi atau KYC.
+Prototipe API Python untuk tantangan kamera: wajah di tengah selama dua frame → mata terbuka → satu frame mata tertutup → mata terbuka lagi pada dua frame dalam 1,5 detik → menoleh sedikit ke kiri atau kanan pada dua frame → kembali menghadap kamera pada dua frame. Mobile memakai stream kamera agar dapat mengirim frame lebih sering selama tahap kedip. Deteksi wajah frontal, mata, dan pencahayaan tetap memakai OpenCV Haar; tahap menoleh memakai lima landmark mata dan hidung dari model YuNet OpenCV. Penyelarasan memakai posisi dan ukuran kotak wajah pada gambar kamera; koordinat ini belum dikalibrasi terhadap crop preview dan bingkai panduan mobile. Hasil `passed` sekarang juga memerlukan skor passive anti-spoofing dari sedikitnya lima frame wajah berwarna. Ini tetap prototipe; jangan gunakan hasilnya sebagai satu-satunya dasar autentikasi atau KYC.
+
+Passive anti-spoofing memakai [MiniFASNetV2 dari Silent Face Anti-Spoofing](https://github.com/minivision-ai/Silent-Face-Anti-Spoofing) dalam [konversi ONNX](https://huggingface.co/garciafido/minifasnet-v2-anti-spoofing-onnx) dengan SHA-256 `d7b3cd9ba8a7ceb13baa8c4720902e27ca3112eff52f926c08804af6b6eecc7b`. Inputnya crop wajah BGR 80×80 dengan margin 2,7 kali dan nilai piksel **0–255**, mengikuti praproses proyek asli. Indeks keluaran **1** adalah wajah asli sesuai kode pengujian proyek asli; indeks 0 dan 2 diperlakukan bersama sebagai serangan presentasi. Model ini ditujukan untuk foto dan tampilan layar, termasuk replay, tetapi keputusan saat ini menggabungkan skor beberapa frame dari model gambar tunggal; belum ada model gerakan temporal khusus. Sesi tidak dihentikan hanya karena lima skor awal rendah. `passed` memerlukan median skor asli minimal 0,5 pada akhir tantangan; skor yang lebih rendah menghasilkan pesan bahwa pemeriksaan belum meyakinkan, tanpa mengklaim media wajah terdeteksi. Ambang tersebut awal dan perlu kalibrasi dengan kamera, pencahayaan, foto cetak, layar HP/monitor, dan video replay nyata. Tipe serangan spesifik tidak dilaporkan karena label dua kelas serangan belum terverifikasi. Mask/3D spoof belum menjadi target validasi.
 
 Pencahayaan diukur dari area tengah wajah pada gambar asli. Frame dengan median intensitas di bawah 55, di atas 205, atau lebih dari 45% area wajah hampir hitam/putih akan mengulang penyelarasan dan memberi instruksi memperbaiki cahaya. Ambang ini bersifat heuristik dan perlu diuji pada perangkat serta kondisi nyata; pemeriksaan ini tidak mendeteksi kacamata hitam atau menjamin ketahanan terhadap spoofing.
 
@@ -47,11 +49,11 @@ Sesi yang tidak ada atau kedaluwarsa ditutup dengan kode 4404, sesi yang sudah s
 dan keberhasilan atau kegagalan tantangan menutup koneksi dengan kode 1000 setelah respons terakhir.
 Payload gambar maksimal 5 MB. Endpoint HTTP tetap tersedia.
 
-Khusus WebSocket, mobile juga dapat mengirim frame luminans mentah berformat `LVY1`:
-4 byte ASCII `LVY1`, lebar dan tinggi masing-masing 2 byte big-endian, lalu satu byte intensitas
+Khusus WebSocket, mobile mengirim frame BGR mentah berformat `LVC1`:
+4 byte ASCII `LVC1`, lebar dan tinggi masing-masing 2 byte big-endian, lalu tiga byte BGR
 untuk setiap piksel (baris demi baris). Mobile merotasi frame ke posisi tegak dan mengecilkan
-sisi terpanjang menjadi paling banyak 640 piksel sebelum pengiriman. Endpoint HTTP tetap
-menerima JPEG/PNG saja.
+sisi terpanjang menjadi paling banyak 640 piksel sebelum pengiriman. Frame `LVY1` lama ditolak
+karena tidak memiliki data warna untuk model. Endpoint HTTP tetap menerima JPEG/PNG saja.
 
 ```sh
 curl -X POST http://127.0.0.1:8000/sessions

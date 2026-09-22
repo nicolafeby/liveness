@@ -11,3 +11,4 @@ class Observation:
     face_height: float = 0.0
     lighting: str | None = None
     face_yaw: float | None = None
+    passive_scores: tuple[float, float, float] | None = None

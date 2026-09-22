@@ -7,7 +7,7 @@ from models import Observation
 class ChallengeTests(unittest.TestCase):
     @staticmethod
     def face(eyes=True, x=.5, y=.5, width=.35, height=.45, yaw=None):
-        return Observation(1, eyes, x, y, width, height, face_yaw=yaw)
+        return Observation(1, eyes, x, y, width, height, face_yaw=yaw, passive_scores=(.005, .99, .005))
 
     def test_complete_sequence(self):
         session = Session(created_at=1)
@@ -127,12 +127,12 @@ class ChallengeTests(unittest.TestCase):
         for now in (1.1, 1.2, 1.3, 1.4):
             session.advance(self.face(), now)
         self.assertEqual(session.stage.value, "blink")
-        dark = Observation(1, True, .5, .5, .35, .45, "dark")
+        dark = Observation(1, True, .5, .5, .35, .45, "dark", passive_scores=(.005, .99, .005))
         result = session.advance(dark, 1.5)
         self.assertEqual(result["status"], "align")
         self.assertIn("terlalu gelap", result["instruction"])
         self.assertIsNone(session.baseline_x)
-        bright = Observation(1, True, .5, .5, .35, .45, "bright")
+        bright = Observation(1, True, .5, .5, .35, .45, "bright", passive_scores=(.005, .99, .005))
         result = session.advance(bright, 1.6)
         self.assertIn("terlalu terang", result["instruction"])
         self.assertEqual(session.aligned_frames, 0)
@@ -181,6 +181,28 @@ class ChallengeTests(unittest.TestCase):
         session = Session(created_at=1)
         result = session.advance(self.face(), 122)
         self.assertEqual(result["status"], "failed")
+
+    def test_spoof_samples_cannot_pass_even_after_challenge(self):
+        session = Session(created_at=1)
+        def spoof(eyes=True, yaw=None):
+            return Observation(1, eyes, .5, .5, .35, .45, face_yaw=yaw,
+                               passive_scores=(.98, .01, .01))
+        for now, eyes in [(1.1, True), (1.2, True), (1.3, True),
+                          (1.4, False), (1.5, True), (1.6, True)]:
+            result = session.advance(spoof(eyes), now)
+        self.assertEqual(result["status"], "move")
+        for now, yaw in [(1.7, 0), (1.8, 19), (1.9, 21), (2.0, 5), (2.1, 3)]:
+            result = session.advance(spoof(yaw=yaw), now)
+        self.assertEqual(result["status"], "failed")
+        self.assertFalse(result["passed"])
+        self.assertNotIn("Media wajah terdeteksi", result["instruction"])
+
+    def test_missing_color_evidence_does_not_advance(self):
+        session = Session(created_at=1)
+        result = session.advance(Observation(1, True, .5, .5, .35, .45), 1.1)
+        self.assertEqual(result["status"], "align")
+        self.assertEqual(result["frames_processed"], 1)
+        self.assertIn("berwarna", result["instruction"])
 
 
 if __name__ == "__main__":

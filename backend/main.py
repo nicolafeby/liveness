@@ -22,8 +22,8 @@ def observe_frame(data: bytes, allow_luma: bool = False, detect_turn: bool = Fal
     if not data or len(data) > MAX_IMAGE_BYTES:
         raise ValueError("Gambar harus berukuran 1 byte sampai 5 MB")
     if not (data.startswith(b"\xff\xd8\xff") or data.startswith(b"\x89PNG\r\n\x1a\n")
-            or (allow_luma and data.startswith(b"LVY1"))):
-        raise ValueError("Gunakan gambar JPEG atau PNG")
+            or (allow_luma and data.startswith((b"LVC1", b"LVY1")))):
+        raise ValueError("Gunakan gambar JPEG, PNG, atau frame warna LVC1 melalui stream")
     return detector.observe(data, detect_turn=detect_turn)
 
 
