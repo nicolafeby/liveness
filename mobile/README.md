@@ -13,7 +13,7 @@ Siapkan distribusi satu kali:
 3. Di Google Cloud project yang sama, buat service account dengan role **Firebase App Distribution Admin** dan unduh JSON private key. Simpan seluruh isi JSON sebagai GitHub Actions **environment secret** bernama `FIREBASE_SERVICE_ACCOUNT` pada environment `research`. Jangan commit private key ke repo.
 4. Buat GitHub Actions **environment variable** `FIREBASE_TESTER_GROUPS` pada environment `research` berisi alias grup tester. Beberapa alias dapat dipisahkan koma.
 
-Workflow mengambil Firebase App ID dari `android/app/google-services.json`. APK yang dikirim adalah build **release** untuk pengujian. Pastikan konfigurasi signing Android sesuai kebutuhan sebelum mendistribusikannya lebih luas.
+Workflow mengambil Firebase App ID dari `android/app/google-services.json`. APK yang dikirim adalah build **release** untuk pengujian. Build number Android (`versionCode`) otomatis memakai nomor run GitHub Actions, sedangkan versi aplikasi (`versionName`) tetap mengikuti `pubspec.yaml`. Release notes di Firebase berisi pesan dari lima commit terbaru. Pastikan konfigurasi signing Android sesuai kebutuhan sebelum mendistribusikannya lebih luas.
 
 A new Flutter project.
 
