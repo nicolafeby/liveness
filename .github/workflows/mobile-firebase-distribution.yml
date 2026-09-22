@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  android:
+  ci:
     # Pull requests use an isolated runner; pushes use the project's Linux runner.
     runs-on: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest"]' || '["self-hosted","Linux","X64","research-liveness"]') }}
     defaults:
@@ -28,9 +28,18 @@ jobs:
 
       - name: Select Flutter with FVM on self-hosted runner
         if: github.event_name == 'push'
+        env:
+          FVM_EXECUTABLE: ${{ vars.FVM_EXECUTABLE }}
         run: |
-          command -v fvm >/dev/null || { echo 'FVM is not on the runner PATH'; exit 1; }
-          fvm use 3.41.6 --skip-pub-get
+          if [ -n "$FVM_EXECUTABLE" ]; then
+            test -x "$FVM_EXECUTABLE" || { echo "FVM_EXECUTABLE is not executable: $FVM_EXECUTABLE"; exit 1; }
+            fvm_cmd="$FVM_EXECUTABLE"
+          else
+            export PATH="$HOME/.pub-cache/bin:$HOME/.local/bin:$PATH"
+            fvm_cmd="$(command -v fvm || true)"
+            test -n "$fvm_cmd" || { echo 'FVM not found. Set repository variable FVM_EXECUTABLE to its absolute path on the runner.'; exit 1; }
+          fi
+          "$fvm_cmd" use 3.41.6 --skip-pub-get
           test -x .fvm/flutter_sdk/bin/flutter || { echo 'FVM did not create .fvm/flutter_sdk/bin/flutter'; exit 1; }
           echo "$PWD/.fvm/flutter_sdk/bin" >> "$GITHUB_PATH"
 
@@ -66,9 +75,9 @@ jobs:
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
 
-  distribute:
+  cd:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: android
+    needs: ci
     runs-on: [self-hosted, Linux, X64, research-liveness]
     environment: research
     defaults:
