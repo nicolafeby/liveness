@@ -19,11 +19,23 @@ class Detector:
             raise ValueError("Gambar tidak valid atau terlalu kecil (minimal 100x100)")
         if image.shape[0] * image.shape[1] > 12_000_000:
             raise ValueError("Resolusi gambar terlalu besar")
-        gray = cv2.equalizeHist(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY))
+        luminance = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        gray = cv2.equalizeHist(luminance)
         faces = self.face.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(80, 80))
         if len(faces) != 1:
             return Observation(face_count=len(faces))
         x, y, w, h = faces[0]
+        # Measure the central face region before histogram equalization, which
+        # would hide underexposure and overexposure from the quality check.
+        face_light = luminance[y + h // 5:y + 4 * h // 5,
+                               x + w // 5:x + 4 * w // 5]
+        median_light = float(np.median(face_light))
+        if median_light < 55 or np.mean(face_light < 25) > .45:
+            lighting = "dark"
+        elif median_light > 205 or np.mean(face_light > 245) > .45:
+            lighting = "bright"
+        else:
+            lighting = None
         upper = gray[y:y + int(h * 0.55), x:x + w]
         eyes = self.eye.detectMultiScale(upper, scaleFactor=1.1, minNeighbors=5,
                                          minSize=(max(12, w // 12), max(12, h // 12)))
@@ -31,4 +43,4 @@ class Detector:
                            face_center_x=(x + w / 2) / image.shape[1],
                            face_center_y=(y + h / 2) / image.shape[0],
                            face_width=w / image.shape[1],
-                           face_height=h / image.shape[0])
+                           face_height=h / image.shape[0], lighting=lighting)

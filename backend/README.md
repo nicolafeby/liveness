@@ -2,6 +2,8 @@
 
 Prototipe API Python untuk tantangan kamera: wajah di tengah selama dua frame → mata terbuka → kedip (minimal dua frame) → mata terbuka → geser kepala dalam bingkai. Deteksi memakai Haar cascade OpenCV. Penyelarasan memakai posisi dan ukuran kotak wajah pada gambar kamera; koordinat ini belum dikalibrasi terhadap crop preview dan bingkai panduan mobile. Hasil `passed` hanya berarti urutan tantangan teramati. Video replay atau foto yang digerakkan dapat mengelabui pendekatan ini; jangan gunakan hasilnya sebagai satu-satunya dasar autentikasi atau KYC.
 
+Pencahayaan diukur dari area tengah wajah pada gambar asli. Frame dengan median intensitas di bawah 55, di atas 205, atau lebih dari 45% area wajah hampir hitam/putih akan mengulang penyelarasan dan memberi instruksi memperbaiki cahaya. Ambang ini bersifat heuristik dan perlu diuji pada perangkat serta kondisi nyata; pemeriksaan ini tidak mendeteksi kacamata hitam atau menjamin ketahanan terhadap spoofing.
+
 ## Menjalankan
 
 Gunakan interpreter Python yang didukung paket dalam `requirements.txt` (teruji dengan Python 3.14 di macOS ARM).

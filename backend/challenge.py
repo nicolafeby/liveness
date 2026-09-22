@@ -1,6 +1,7 @@
 """State machine for a blink and movement challenge."""
 from dataclasses import dataclass, field
 from enum import Enum
+from secrets import choice
 from threading import Lock
 from time import monotonic
 from uuid import uuid4
@@ -60,10 +61,31 @@ class Session:
     created_at: float = field(default_factory=monotonic)
     stage: ChallengeStage = ChallengeStage.ALIGN
     baseline_x: float | None = None
+    baseline_y: float | None = None
+    baseline_width: float | None = None
+    baseline_height: float | None = None
+    move_direction: int = 1
     aligned_frames: int = 0
     closed_frames: int = 0
+    moved_frames: int = 0
     frames: int = 0
     last_frame_at: float = 0.0
+
+    def reset_tracking(self):
+        self.stage = ChallengeStage.ALIGN
+        self.aligned_frames = 0
+        self.closed_frames = 0
+        self.moved_frames = 0
+        self.baseline_x = None
+        self.baseline_y = None
+        self.baseline_width = None
+        self.baseline_height = None
+
+    def stable_face(self, observation: Observation) -> bool:
+        return (self.baseline_y is not None
+                and abs(observation.face_center_y - self.baseline_y) <= .10
+                and abs(observation.face_width - self.baseline_width) <= .10
+                and abs(observation.face_height - self.baseline_height) <= .10)
 
     def advance(self, observation: Observation, now: float) -> dict:
         if self.frames >= MAX_FRAMES or now - self.created_at > TTL_SECONDS:
@@ -74,9 +96,13 @@ class Session:
         self.last_frame_at = now
         self.frames += 1
         if observation.face_count != 1:
-            if self.stage == ChallengeStage.ALIGN:
-                self.aligned_frames = 0
+            self.reset_tracking()
             return self.result("Pastikan tepat satu wajah terlihat")
+        if observation.lighting is not None:
+            self.reset_tracking()
+            if observation.lighting == "dark":
+                return self.result("Wajah terlalu gelap, pindah ke tempat yang lebih terang")
+            return self.result("Wajah terlalu terang, hindari cahaya langsung")
         if self.stage == ChallengeStage.ALIGN:
             guidance = alignment_instruction(observation)
             if guidance is not None or not observation.eyes_visible:
@@ -89,12 +115,21 @@ class Session:
         if self.stage == ChallengeStage.OPEN:
             guidance = alignment_instruction(observation)
             if guidance is not None:
-                self.stage = ChallengeStage.ALIGN
-                self.aligned_frames = 0
+                self.reset_tracking()
                 return self.result(guidance)
         if self.stage == ChallengeStage.OPEN and observation.eyes_visible:
             self.baseline_x = observation.face_center_x
+            self.baseline_y = observation.face_center_y
+            self.baseline_width = observation.face_width
+            self.baseline_height = observation.face_height
             self.stage = ChallengeStage.BLINK
+        elif self.stage in (ChallengeStage.BLINK, ChallengeStage.REOPEN, ChallengeStage.MOVE) and (
+            not self.stable_face(observation)
+            or (self.stage != ChallengeStage.MOVE
+                and abs(observation.face_center_x - self.baseline_x) > .10)
+        ):
+            self.reset_tracking()
+            return self.result("Jaga wajah tetap pada jarak dan tinggi yang sama")
         elif self.stage == ChallengeStage.BLINK and not observation.eyes_visible:
             self.closed_frames += 1
             if self.closed_frames >= 2:
@@ -103,11 +138,20 @@ class Session:
             self.closed_frames = 0
         elif self.stage == ChallengeStage.REOPEN and observation.eyes_visible:
             self.stage = ChallengeStage.MOVE
-        elif self.stage == ChallengeStage.MOVE and abs(observation.face_center_x - self.baseline_x) >= 0.15:
-            self.stage = ChallengeStage.PASSED
+        elif self.stage == ChallengeStage.MOVE:
+            if (observation.eyes_visible
+                    and (observation.face_center_x - self.baseline_x) * self.move_direction >= .15):
+                self.moved_frames += 1
+                if self.moved_frames >= 2:
+                    self.stage = ChallengeStage.PASSED
+            else:
+                self.moved_frames = 0
         return self.result()
 
     def result(self, message: str | None = None) -> dict:
+        if message is None and self.stage == ChallengeStage.MOVE:
+            message = ("Geser kepala ke kanan dalam bingkai" if self.move_direction == 1
+                       else "Geser kepala ke kiri dalam bingkai")
         return {"status": self.stage.value, "passed": self.stage == ChallengeStage.PASSED,
                 "instruction": message or self.stage.instruction, "frames_processed": self.frames}
 
@@ -121,7 +165,7 @@ class SessionStore:
         with self._lock:
             self._prune()
             session_id = uuid4().hex
-            session = Session()
+            session = Session(move_direction=choice((-1, 1)))
             self._sessions[session_id] = session
             return session_id, session.result()
 

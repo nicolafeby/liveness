@@ -13,7 +13,7 @@ class ChallengeTests(unittest.TestCase):
         session = Session(created_at=1)
         frames = [(1.1, True, .5), (1.2, True, .5), (1.3, True, .5),
                   (1.4, False, .5), (1.5, False, .5), (1.6, True, .5),
-                  (1.7, True, .7)]
+                  (1.7, True, .7), (1.8, True, .7)]
         for now, eyes, center in frames:
             result = session.advance(self.face(eyes, center), now)
         self.assertTrue(result["passed"])
@@ -59,6 +59,55 @@ class ChallengeTests(unittest.TestCase):
         session = Session(created_at=1)
         result = session.advance(Observation(2, True, .4), 1.1)
         self.assertEqual(result["status"], "align")
+
+    def test_lost_face_resets_blink_evidence(self):
+        session = Session(created_at=1)
+        for now, eyes in [(1.1, True), (1.2, True), (1.3, True), (1.4, False)]:
+            session.advance(self.face(eyes), now)
+        result = session.advance(Observation(0), 1.5)
+        self.assertEqual(result["status"], "align")
+        self.assertEqual(session.closed_frames, 0)
+
+    def test_size_change_cannot_count_as_blink(self):
+        session = Session(created_at=1)
+        for now in (1.1, 1.2, 1.3):
+            session.advance(self.face(), now)
+        result = session.advance(self.face(False, width=.55), 1.4)
+        self.assertEqual(result["status"], "align")
+
+    def test_sideways_motion_cannot_count_as_blink(self):
+        session = Session(created_at=1)
+        for now in (1.1, 1.2, 1.3):
+            session.advance(self.face(), now)
+        result = session.advance(self.face(False, x=.7), 1.4)
+        self.assertEqual(result["status"], "align")
+
+    def test_bad_lighting_resets_progress_and_gives_guidance(self):
+        session = Session(created_at=1)
+        for now in (1.1, 1.2, 1.3, 1.4):
+            session.advance(self.face(), now)
+        self.assertEqual(session.stage.value, "blink")
+        dark = Observation(1, True, .5, .5, .35, .45, "dark")
+        result = session.advance(dark, 1.5)
+        self.assertEqual(result["status"], "align")
+        self.assertIn("terlalu gelap", result["instruction"])
+        self.assertIsNone(session.baseline_x)
+        bright = Observation(1, True, .5, .5, .35, .45, "bright")
+        result = session.advance(bright, 1.6)
+        self.assertIn("terlalu terang", result["instruction"])
+        self.assertEqual(session.aligned_frames, 0)
+
+    def test_movement_requires_requested_direction_and_two_frames(self):
+        session = Session(created_at=1, move_direction=-1)
+        for now, eyes in [(1.1, True), (1.2, True), (1.3, True),
+                          (1.4, False), (1.5, False), (1.6, True)]:
+            session.advance(self.face(eyes), now)
+        self.assertIn("kiri", session.result()["instruction"])
+        self.assertFalse(session.advance(self.face(x=.7), 1.7)["passed"])
+        self.assertFalse(session.advance(self.face(x=.3), 1.8)["passed"])
+        self.assertFalse(session.advance(self.face(False, x=.3), 1.9)["passed"])
+        self.assertFalse(session.advance(self.face(x=.3), 2.0)["passed"])
+        self.assertTrue(session.advance(self.face(x=.3), 2.1)["passed"])
 
     def test_expiry(self):
         session = Session(created_at=1)

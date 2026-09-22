@@ -9,3 +9,4 @@ class Observation:
     face_center_y: float = 0.0
     face_width: float = 0.0
     face_height: float = 0.0
+    lighting: str | None = None

@@ -31,16 +31,17 @@ class FakeWebSocket:
 class StreamTests(unittest.TestCase):
     def test_stream_advances_challenge_and_reports_invalid_frame(self):
         store = SessionStore()
-        session_id, _ = store.create()
+        with patch("challenge.choice", return_value=1):
+            session_id, _ = store.create()
         jpeg = b"\xff\xd8\xff" + b"frame"
         messages = [{"type": "websocket.receive", "text": "bad"},
                     {"type": "websocket.receive", "bytes": b"not an image"},
-                    *[{"type": "websocket.receive", "bytes": jpeg} for _ in range(7)]]
+                    *[{"type": "websocket.receive", "bytes": jpeg} for _ in range(8)]]
         socket = FakeWebSocket(messages)
         observations = [Observation(1, eyes, x, .5, .35, .45)
                         for eyes, x in [(True, .5), (True, .5), (True, .5),
                                         (False, .5), (False, .5), (True, .5),
-                                        (True, .7)]]
+                                        (True, .7), (True, .7)]]
 
         async def run():
             with patch.object(main, "sessions", store), patch.object(
