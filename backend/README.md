@@ -57,3 +57,18 @@ Contoh respons gagal validasi (HTTP 422):
 ```
 
 Sesi disimpan dalam memori proses dan gambar tidak disimpan oleh aplikasi. Deployment produksi memerlukan penyimpanan sesi bersama, pembatasan laju, autentikasi, TLS, dan model anti-spoofing yang diuji pada data relevan.
+
+## Deploy ke home server
+
+Push ke branch `main` yang mengubah file dalam `backend/` akan menjalankan workflow
+`.github/workflows/backend-deploy.yml`. Workflow menggunakan self-hosted runner Linux
+berlabel `research-liveness` yang sudah dipakai proyek ini. Runner harus berjalan di
+home server, memiliki Docker dan izin untuk menjalankan perintah `docker` tanpa sudo.
+
+Workflow membangun image dari `backend/Dockerfile`, menjalankan container
+`research-liveness-backend`, lalu menunggu health check. Backend tersedia di
+`http://<alamat-home-server>:18080/health`. Port host `18080` dipilih dari daftar port
+Docker yang diberikan. Pastikan port itu juga tidak digunakan proses lain di host;
+Docker akan menolak deployment bila port sedang dipakai. Container lama akan
+dikembalikan jika container baru gagal sehat. Deployment mereset sesi yang tersimpan
+di memori, sehingga sesi yang sedang berlangsung harus dimulai ulang.

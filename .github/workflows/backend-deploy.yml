@@ -1,0 +1,23 @@
+name: Deploy backend to home server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: research-liveness-backend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, Linux, X64, research-liveness]
+    environment: research
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and deploy backend
+        run: bash backend/deploy.sh
