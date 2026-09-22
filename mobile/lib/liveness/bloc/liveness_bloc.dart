@@ -4,7 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:liveness/liveness/bloc/liveness_event.dart';
 import 'package:liveness/liveness/bloc/liveness_state.dart';
 import 'package:liveness/core/liveness_api.dart';
-import 'package:liveness/core/luma_frame.dart';
+import 'package:liveness/core/color_frame.dart';
 import 'package:liveness/liveness/models/liveness_status.dart';
 
 class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
@@ -106,7 +106,7 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
       lastFrameAt = clock.elapsedMilliseconds;
       unawaited(() async {
         try {
-          final payload = encodeLumaFrame(image, camera.description.sensorOrientation, camera.value.deviceOrientation);
+          final payload = encodeColorFrame(image, camera.description.sensorOrientation, camera.value.deviceOrientation);
           final result = await stream.submitFrame(payload);
           if (isClosed || generation != _generation) return;
           status = result.status;
