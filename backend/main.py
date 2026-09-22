@@ -18,10 +18,11 @@ sessions = SessionStore()
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 
-def observe_frame(data: bytes):
+def observe_frame(data: bytes, allow_luma: bool = False):
     if not data or len(data) > MAX_IMAGE_BYTES:
         raise ValueError("Gambar harus berukuran 1 byte sampai 5 MB")
-    if not (data.startswith(b"\xff\xd8\xff") or data.startswith(b"\x89PNG\r\n\x1a\n")):
+    if not (data.startswith(b"\xff\xd8\xff") or data.startswith(b"\x89PNG\r\n\x1a\n")
+            or (allow_luma and data.startswith(b"LVY1"))):
         raise ValueError("Gunakan gambar JPEG atau PNG")
     return detector.observe(data)
 
@@ -79,7 +80,7 @@ async def stream_frames(websocket: WebSocket, session_id: str):
                                            "data": None, "errors": None})
                 continue
             try:
-                observation = await run_in_threadpool(observe_frame, data)
+                observation = await run_in_threadpool(observe_frame, data, True)
             except ValueError as exc:
                 await websocket.send_json({"success": False, "message": str(exc),
                                            "data": None, "errors": None})

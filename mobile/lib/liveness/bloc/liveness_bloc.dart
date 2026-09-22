@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:liveness/liveness/bloc/liveness_event.dart';
 import 'package:liveness/liveness/bloc/liveness_state.dart';
 import 'package:liveness/core/liveness_api.dart';
+import 'package:liveness/core/luma_frame.dart';
+import 'package:liveness/liveness/models/liveness_status.dart';
 
 class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
   LivenessBloc({LivenessApi? api}) : _api = api ?? LivenessApi(), super(const LivenessState()) {
@@ -53,7 +55,7 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
         front.first,
         ResolutionPreset.medium,
         enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.jpeg,
+        imageFormatGroup: ImageFormatGroup.yuv420,
       );
       await controller.initialize();
       if (isClosed || emit.isDone || generation != _generation) {
@@ -73,8 +75,12 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
       }
       _stream = stream;
       emit(LivenessState(camera: controller, instruction: session.result.instruction, status: session.result.status));
-      unawaited(_captureLoop(controller, stream, generation));
+      await _startFrameStream(controller, stream, generation);
     } catch (error) {
+      if (_stream != null && generation == _generation) {
+        await _stream?.close();
+        _stream = null;
+      }
       await controller?.dispose();
       if (!isClosed && !emit.isDone && generation == _generation) {
         emit(
@@ -86,31 +92,41 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
     }
   }
 
-  Future<void> _captureLoop(CameraController camera, LivenessStream stream, int generation) async {
-    while (!isClosed && generation == _generation) {
-      try {
-        final image = await camera.takePicture();
-        if (isClosed || generation != _generation) return;
-        final result = await stream.submitFrame(await image.readAsBytes());
-        if (isClosed || generation != _generation) return;
-        add(FrameResultReceived(generation, result));
-        if (result.status.isFinished) {
+  Future<void> _startFrameStream(CameraController camera, LivenessStream stream, int generation) async {
+    final clock = Stopwatch()..start();
+    var lastFrameAt = -350;
+    var sending = false;
+    var status = LivenessStatus.align;
+    await camera.startImageStream((image) {
+      if (sending || isClosed || generation != _generation || !identical(_stream, stream)) return;
+      final blinkInProgress = status == LivenessStatus.blink || status == LivenessStatus.reopen;
+      final interval = blinkInProgress ? 100 : 300;
+      if (clock.elapsedMilliseconds - lastFrameAt < interval) return;
+      sending = true;
+      lastFrameAt = clock.elapsedMilliseconds;
+      unawaited(() async {
+        try {
+          final payload = encodeLumaFrame(image, camera.description.sensorOrientation, camera.value.deviceOrientation);
+          final result = await stream.submitFrame(payload);
+          if (isClosed || generation != _generation) return;
+          status = result.status;
+          add(FrameResultReceived(generation, result));
+          if (result.status.isFinished) {
+            if (camera.value.isStreamingImages) await camera.stopImageStream();
+            await stream.close();
+            if (identical(_stream, stream)) _stream = null;
+          }
+        } catch (error) {
+          if (!isClosed && generation == _generation) {
+            add(SessionFailed(generation, error is LivenessApiException ? error.message : 'Gagal mengirim frame ke server'));
+          }
           await stream.close();
           if (identical(_stream, stream)) _stream = null;
-          return;
+        } finally {
+          sending = false;
         }
-        await Future<void>.delayed(const Duration(milliseconds: 350));
-      } catch (error) {
-        if (!isClosed && generation == _generation) {
-          add(
-            SessionFailed(generation, error is LivenessApiException ? error.message : 'Gagal mengirim frame ke server'),
-          );
-        }
-        await stream.close();
-        if (identical(_stream, stream)) _stream = null;
-        return;
-      }
-    }
+      }());
+    });
   }
 
   @override

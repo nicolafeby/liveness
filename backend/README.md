@@ -1,8 +1,12 @@
 # Backend liveness detection
 
-Prototipe API Python untuk tantangan kamera: wajah di tengah selama dua frame → mata terbuka → kedip (minimal dua frame) → mata terbuka → geser kepala dalam bingkai. Deteksi memakai Haar cascade OpenCV. Penyelarasan memakai posisi dan ukuran kotak wajah pada gambar kamera; koordinat ini belum dikalibrasi terhadap crop preview dan bingkai panduan mobile. Hasil `passed` hanya berarti urutan tantangan teramati. Video replay atau foto yang digerakkan dapat mengelabui pendekatan ini; jangan gunakan hasilnya sebagai satu-satunya dasar autentikasi atau KYC.
+Prototipe API Python untuk tantangan kamera: wajah di tengah selama dua frame → mata terbuka → satu frame mata tertutup → mata terbuka lagi pada dua frame dalam 1,5 detik → geser kepala dalam bingkai. Mobile memakai stream kamera agar dapat mengirim frame lebih sering selama tahap kedip. Deteksi memakai Haar cascade OpenCV. Penyelarasan memakai posisi dan ukuran kotak wajah pada gambar kamera; koordinat ini belum dikalibrasi terhadap crop preview dan bingkai panduan mobile. Hasil `passed` hanya berarti urutan tantangan teramati. Video replay atau foto yang digerakkan dapat mengelabui pendekatan ini; jangan gunakan hasilnya sebagai satu-satunya dasar autentikasi atau KYC.
 
 Pencahayaan diukur dari area tengah wajah pada gambar asli. Frame dengan median intensitas di bawah 55, di atas 205, atau lebih dari 45% area wajah hampir hitam/putih akan mengulang penyelarasan dan memberi instruksi memperbaiki cahaya. Ambang ini bersifat heuristik dan perlu diuji pada perangkat serta kondisi nyata; pemeriksaan ini tidak mendeteksi kacamata hitam atau menjamin ketahanan terhadap spoofing.
+
+Deteksi mata mencoba Haar cascade mata biasa dan varian `eye_tree_eyeglasses` pada wajah yang sudah diratakan kontrasnya, lalu mencoba lagi dengan peningkatan kontras lokal jika perlu. Dua kandidat hanya diterima jika berada pada sisi kiri dan kanan wajah dengan tinggi yang berdekatan. Ini mengurangi kegagalan saat satu cascade melewatkan mata, tetapi perubahan sensitivitas masih perlu diuji dengan rekaman kamera nyata, termasuk saat mata tertutup.
+
+Pada tahap gerakan, pengguna perlu menggeser posisi kepala ke kiri atau kanan sambil tetap menghadap kamera. Menoleh dapat membuat detektor wajah frontal kehilangan wajah. Jika pelacakan wajah atau pencahayaan terganggu, tahap gerakan dipertahankan hingga dua detik untuk memberi waktu memperbaiki posisi; gangguan lebih lama mengulang tantangan dari awal.
 
 ## Menjalankan
 
@@ -27,7 +31,7 @@ Dokumentasi interaktif di komputer: `http://127.0.0.1:8000/docs`.
 
 1. `POST /sessions` membuat sesi dengan masa berlaku 120 detik.
 2. `POST /sessions/{session_id}/frames` menerima multipart field `image` berupa JPEG/PNG (maksimal 5 MB). Kirim satu frame setiap minimal 80 ms sesuai `instruction` pada respons.
-3. Respons berhasil memiliki format `success`, `message`, `data`, `errors`. Status tantangan (`status`, `passed`, `instruction`, `frames_processed`) berada di dalam `data`. Sesi berhenti setelah berhasil, kedaluwarsa, atau 60 frame.
+3. Respons berhasil memiliki format `success`, `message`, `data`, `errors`. Status tantangan (`status`, `passed`, `instruction`, `frames_processed`) berada di dalam `data`. Sesi berhenti setelah berhasil, kedaluwarsa, atau 180 frame.
 4. `GET /health` untuk pemeriksaan proses.
 
 Alternatif untuk pengiriman frame berulang adalah WebSocket `WS /sessions/{session_id}/stream`.
@@ -40,6 +44,12 @@ tidak valid mendapat respons `success: false`; koneksi tetap terbuka agar mobile
 Sesi yang tidak ada atau kedaluwarsa ditutup dengan kode 4404, sesi yang sudah selesai dengan 4409,
 dan keberhasilan atau kegagalan tantangan menutup koneksi dengan kode 1000 setelah respons terakhir.
 Payload gambar maksimal 5 MB. Endpoint HTTP tetap tersedia.
+
+Khusus WebSocket, mobile juga dapat mengirim frame luminans mentah berformat `LVY1`:
+4 byte ASCII `LVY1`, lebar dan tinggi masing-masing 2 byte big-endian, lalu satu byte intensitas
+untuk setiap piksel (baris demi baris). Mobile merotasi frame ke posisi tegak dan mengecilkan
+sisi terpanjang menjadi paling banyak 640 piksel sebelum pengiriman. Endpoint HTTP tetap
+menerima JPEG/PNG saja.
 
 ```sh
 curl -X POST http://127.0.0.1:8000/sessions

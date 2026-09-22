@@ -122,7 +122,9 @@ class _LivenessScreenState extends State<LivenessScreen> with SingleTickerProvid
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            cameraError ?? state.instruction ?? 'Tahan wajah tetap diam',
+                            cameraError ??
+                                state.instruction ??
+                                'Hadapkan wajah ke kamera dan pastikan kedua mata terlihat jelas.',
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: Colors.white,

@@ -29,6 +29,14 @@ class FakeWebSocket:
 
 
 class StreamTests(unittest.TestCase):
+    def test_raw_luma_is_only_accepted_for_stream(self):
+        pixels = bytes([120]) * (200 * 200)
+        frame = b"LVY1" + (200).to_bytes(2, "big") * 2 + pixels
+        with patch.object(main.detector, "observe", return_value=Observation(0)):
+            self.assertEqual(main.observe_frame(frame, allow_luma=True).face_count, 0)
+            with self.assertRaises(ValueError):
+                main.observe_frame(frame)
+
     def test_stream_advances_challenge_and_reports_invalid_frame(self):
         store = SessionStore()
         with patch("challenge.choice", return_value=1):
@@ -40,7 +48,7 @@ class StreamTests(unittest.TestCase):
         socket = FakeWebSocket(messages)
         observations = [Observation(1, eyes, x, .5, .35, .45)
                         for eyes, x in [(True, .5), (True, .5), (True, .5),
-                                        (False, .5), (False, .5), (True, .5),
+                                        (False, .5), (True, .5), (True, .5),
                                         (True, .7), (True, .7)]]
 
         async def run():

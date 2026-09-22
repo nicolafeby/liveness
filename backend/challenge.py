@@ -9,8 +9,13 @@ from uuid import uuid4
 from models import Observation
 
 TTL_SECONDS = 120
-MAX_FRAMES = 60
+MAX_FRAMES = 180
 ALIGNMENT_FRAMES = 2
+BLINK_WAIT_FRAMES = 4
+MAX_BLINK_SECONDS = 1.5
+MOVE_TRACKING_GRACE_SECONDS = 2.0
+EYES_NOT_VISIBLE = "Mata belum terlihat jelas. Hadap kamera dan pastikan area mata tidak tertutup."
+BLINK_NOT_DETECTED = "Kedipan belum terdeteksi. Coba kedip sekali lagi."
 
 
 class ChallengeStage(str, Enum):
@@ -25,9 +30,9 @@ class ChallengeStage(str, Enum):
     @property
     def instruction(self) -> str:
         return {
-            ChallengeStage.ALIGN: "Posisikan wajah di tengah bingkai",
-            ChallengeStage.OPEN: "Hadap kamera dengan kedua mata terbuka",
-            ChallengeStage.BLINK: "Kedipkan mata",
+            ChallengeStage.ALIGN: "Hadapkan wajah ke kamera dan pastikan kedua mata terlihat jelas.",
+            ChallengeStage.OPEN: "Hadapkan wajah ke kamera dan pastikan kedua mata terlihat jelas.",
+            ChallengeStage.BLINK: "Kedipkan kedua mata sekali.",
             ChallengeStage.REOPEN: "Buka kembali kedua mata",
             ChallengeStage.MOVE: "Geser kepala ke kiri atau kanan dalam bingkai",
             ChallengeStage.PASSED: "Verifikasi selesai",
@@ -67,7 +72,11 @@ class Session:
     move_direction: int = 1
     aligned_frames: int = 0
     closed_frames: int = 0
+    blink_closed_at: float | None = None
+    reopened_frames: int = 0
+    blink_wait_frames: int = 0
     moved_frames: int = 0
+    move_tracking_lost_at: float | None = None
     frames: int = 0
     last_frame_at: float = 0.0
 
@@ -75,7 +84,11 @@ class Session:
         self.stage = ChallengeStage.ALIGN
         self.aligned_frames = 0
         self.closed_frames = 0
+        self.blink_closed_at = None
+        self.reopened_frames = 0
+        self.blink_wait_frames = 0
         self.moved_frames = 0
+        self.move_tracking_lost_at = None
         self.baseline_x = None
         self.baseline_y = None
         self.baseline_width = None
@@ -87,6 +100,16 @@ class Session:
                 and abs(observation.face_width - self.baseline_width) <= .10
                 and abs(observation.face_height - self.baseline_height) <= .10)
 
+    def tracking_issue(self, now: float, message: str) -> dict:
+        if self.stage == ChallengeStage.MOVE:
+            self.moved_frames = 0
+            if self.move_tracking_lost_at is None:
+                self.move_tracking_lost_at = now
+            if now - self.move_tracking_lost_at < MOVE_TRACKING_GRACE_SECONDS:
+                return self.result(message)
+        self.reset_tracking()
+        return self.result(message)
+
     def advance(self, observation: Observation, now: float) -> dict:
         if self.frames >= MAX_FRAMES or now - self.created_at > TTL_SECONDS:
             self.stage = ChallengeStage.FAILED
@@ -96,18 +119,16 @@ class Session:
         self.last_frame_at = now
         self.frames += 1
         if observation.face_count != 1:
-            self.reset_tracking()
-            return self.result("Pastikan tepat satu wajah terlihat")
+            return self.tracking_issue(now, "Pastikan tepat satu wajah terlihat dan hadap kamera")
         if observation.lighting is not None:
-            self.reset_tracking()
             if observation.lighting == "dark":
-                return self.result("Wajah terlalu gelap, pindah ke tempat yang lebih terang")
-            return self.result("Wajah terlalu terang, hindari cahaya langsung")
+                return self.tracking_issue(now, "Wajah terlalu gelap, pindah ke tempat yang lebih terang")
+            return self.tracking_issue(now, "Wajah terlalu terang, hindari cahaya langsung")
         if self.stage == ChallengeStage.ALIGN:
             guidance = alignment_instruction(observation)
             if guidance is not None or not observation.eyes_visible:
                 self.aligned_frames = 0
-                return self.result(guidance or "Hadap kamera dengan kedua mata terbuka")
+                return self.result(guidance or EYES_NOT_VISIBLE)
             self.aligned_frames += 1
             if self.aligned_frames >= ALIGNMENT_FRAMES:
                 self.stage = ChallengeStage.OPEN
@@ -123,22 +144,41 @@ class Session:
             self.baseline_width = observation.face_width
             self.baseline_height = observation.face_height
             self.stage = ChallengeStage.BLINK
+        elif self.stage == ChallengeStage.OPEN:
+            return self.result(EYES_NOT_VISIBLE)
         elif self.stage in (ChallengeStage.BLINK, ChallengeStage.REOPEN, ChallengeStage.MOVE) and (
             not self.stable_face(observation)
             or (self.stage != ChallengeStage.MOVE
                 and abs(observation.face_center_x - self.baseline_x) > .10)
         ):
-            self.reset_tracking()
-            return self.result("Jaga wajah tetap pada jarak dan tinggi yang sama")
+            message = ("Hadap kamera dan geser kepala tanpa menoleh" if self.stage == ChallengeStage.MOVE
+                       else "Jaga wajah tetap pada jarak dan tinggi yang sama")
+            return self.tracking_issue(now, message)
         elif self.stage == ChallengeStage.BLINK and not observation.eyes_visible:
-            self.closed_frames += 1
-            if self.closed_frames >= 2:
-                self.stage = ChallengeStage.REOPEN
+            self.blink_wait_frames = 0
+            self.closed_frames = 1
+            self.blink_closed_at = now
+            self.stage = ChallengeStage.REOPEN
         elif self.stage == ChallengeStage.BLINK and observation.eyes_visible:
-            self.closed_frames = 0
-        elif self.stage == ChallengeStage.REOPEN and observation.eyes_visible:
-            self.stage = ChallengeStage.MOVE
+            self.blink_wait_frames += 1
+            if self.blink_wait_frames >= BLINK_WAIT_FRAMES:
+                self.blink_wait_frames = 0
+                return self.result(BLINK_NOT_DETECTED)
+        elif self.stage == ChallengeStage.REOPEN:
+            if now - self.blink_closed_at > MAX_BLINK_SECONDS:
+                self.stage = ChallengeStage.BLINK
+                self.closed_frames = 0
+                self.blink_closed_at = None
+                self.reopened_frames = 0
+                return self.result(BLINK_NOT_DETECTED)
+            if observation.eyes_visible:
+                self.reopened_frames += 1
+                if self.reopened_frames >= 2:
+                    self.stage = ChallengeStage.MOVE
+            else:
+                self.reopened_frames = 0
         elif self.stage == ChallengeStage.MOVE:
+            self.move_tracking_lost_at = None
             if (observation.eyes_visible
                     and (observation.face_center_x - self.baseline_x) * self.move_direction >= .15):
                 self.moved_frames += 1
@@ -150,8 +190,8 @@ class Session:
 
     def result(self, message: str | None = None) -> dict:
         if message is None and self.stage == ChallengeStage.MOVE:
-            message = ("Geser kepala ke kanan dalam bingkai" if self.move_direction == 1
-                       else "Geser kepala ke kiri dalam bingkai")
+            message = ("Geser kepala ke kanan tanpa menoleh" if self.move_direction == 1
+                       else "Geser kepala ke kiri tanpa menoleh")
         return {"status": self.stage.value, "passed": self.stage == ChallengeStage.PASSED,
                 "instruction": message or self.stage.instruction, "frames_processed": self.frames}
 

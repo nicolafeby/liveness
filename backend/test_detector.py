@@ -19,6 +19,8 @@ class DetectorTests(unittest.TestCase):
         detector = Detector.__new__(Detector)
         detector.face = FakeCascade([(40, 20, 80, 100)])
         detector.eye = FakeCascade([(10, 10, 20, 20), (40, 10, 20, 20)])
+        detector.eye_glasses = FakeCascade([])
+        detector.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
         return detector
 
     def test_reports_normalized_face_position_and_size(self):
@@ -40,6 +42,50 @@ class DetectorTests(unittest.TestCase):
             encoded, data = cv2.imencode(".jpg", image)
             self.assertTrue(encoded)
             self.assertEqual(detector.observe(data.tobytes()).lighting, expected)
+
+    def test_observes_raw_luma_frame(self):
+        detector = self.detector_with_fixed_face()
+        pixels = bytes([120]) * (200 * 200)
+        frame = b"LVY1" + (200).to_bytes(2, "big") * 2 + pixels
+        observation = detector.observe(frame)
+        self.assertEqual(observation.face_count, 1)
+        self.assertTrue(observation.eyes_visible)
+        self.assertIsNone(observation.lighting)
+
+    def test_rejects_truncated_raw_luma_frame(self):
+        frame = b"LVY1" + (200).to_bytes(2, "big") * 2 + bytes(20)
+        with self.assertRaises(ValueError):
+            Detector().observe(frame)
+
+    def test_eye_pair_can_combine_primary_and_fallback_detections(self):
+        detector = self.detector_with_fixed_face()
+
+        class FakeCascade:
+            def __init__(self, eyes):
+                self.eyes = eyes
+
+            def detectMultiScale(self, *args, **kwargs):
+                return self.eyes
+
+        detector.eye = FakeCascade([(10, 10, 20, 20)])
+        detector.eye_glasses = FakeCascade([(40, 12, 20, 20)])
+        image = np.full((200, 200, 3), 120, dtype=np.uint8)
+        _, data = cv2.imencode(".jpg", image)
+        self.assertTrue(detector.observe(data.tobytes()).eyes_visible)
+
+    def test_two_detections_on_same_side_do_not_count_as_two_eyes(self):
+        detector = self.detector_with_fixed_face()
+        detector.eye.detections = [(5, 10, 20, 20), (15, 12, 20, 20)]
+        image = np.full((200, 200, 3), 120, dtype=np.uint8)
+        _, data = cv2.imencode(".jpg", image)
+        self.assertFalse(detector.observe(data.tobytes()).eyes_visible)
+
+    def test_detections_at_different_heights_do_not_count_as_eye_pair(self):
+        detector = self.detector_with_fixed_face()
+        detector.eye.detections = [(10, 5, 20, 20), (40, 35, 20, 20)]
+        image = np.full((200, 200, 3), 120, dtype=np.uint8)
+        _, data = cv2.imencode(".jpg", image)
+        self.assertFalse(detector.observe(data.tobytes()).eyes_visible)
 
     def test_decodes_jpeg_and_reports_no_face_for_blank_frame(self):
         detector = Detector()
