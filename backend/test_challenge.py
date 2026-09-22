@@ -6,16 +6,17 @@ from models import Observation
 
 class ChallengeTests(unittest.TestCase):
     @staticmethod
-    def face(eyes=True, x=.5, y=.5, width=.35, height=.45):
-        return Observation(1, eyes, x, y, width, height)
+    def face(eyes=True, x=.5, y=.5, width=.35, height=.45, yaw=None):
+        return Observation(1, eyes, x, y, width, height, face_yaw=yaw)
 
     def test_complete_sequence(self):
         session = Session(created_at=1)
         frames = [(1.1, True, .5), (1.2, True, .5), (1.3, True, .5),
-                  (1.4, False, .5), (1.5, True, .5), (1.6, True, .5),
-                  (1.7, True, .7), (1.8, True, .7)]
+                  (1.4, False, .5), (1.5, True, .5), (1.6, True, .5)]
         for now, eyes, center in frames:
             result = session.advance(self.face(eyes, center), now)
+        for now, yaw in [(1.7, 0), (1.8, 19), (1.9, 21), (2.0, 5), (2.1, 3)]:
+            result = session.advance(self.face(yaw=yaw), now)
         self.assertTrue(result["passed"])
 
     def test_eye_instructions_and_incomplete_blink(self):
@@ -136,17 +137,20 @@ class ChallengeTests(unittest.TestCase):
         self.assertIn("terlalu terang", result["instruction"])
         self.assertEqual(session.aligned_frames, 0)
 
-    def test_movement_requires_requested_direction_and_two_frames(self):
-        session = Session(created_at=1, move_direction=-1)
+    def test_turn_requires_two_frames_then_return_to_camera(self):
+        session = Session(created_at=1)
         for now, eyes in [(1.1, True), (1.2, True), (1.3, True),
                           (1.4, False), (1.5, True), (1.6, True)]:
             session.advance(self.face(eyes), now)
-        self.assertIn("kiri", session.result()["instruction"])
-        self.assertFalse(session.advance(self.face(x=.7), 1.7)["passed"])
-        self.assertFalse(session.advance(self.face(x=.3), 1.8)["passed"])
-        self.assertFalse(session.advance(self.face(False, x=.3), 1.9)["passed"])
-        self.assertFalse(session.advance(self.face(x=.3), 2.0)["passed"])
-        self.assertTrue(session.advance(self.face(x=.3), 2.1)["passed"])
+        self.assertIn("Hadap", session.result()["instruction"])
+        self.assertFalse(session.advance(self.face(x=.7, yaw=2), 1.7)["passed"])
+        self.assertFalse(session.advance(self.face(yaw=-18), 1.8)["passed"])
+        self.assertFalse(session.advance(self.face(yaw=0), 1.9)["passed"])
+        self.assertFalse(session.advance(self.face(yaw=-18), 2.0)["passed"])
+        self.assertFalse(session.advance(self.face(yaw=-20), 2.1)["passed"])
+        self.assertIn("Kembali", session.result()["instruction"])
+        self.assertFalse(session.advance(self.face(yaw=3), 2.2)["passed"])
+        self.assertTrue(session.advance(self.face(yaw=4), 2.3)["passed"])
 
     def test_brief_tracking_loss_during_move_does_not_repeat_blink(self):
         session = Session(created_at=1)
@@ -157,10 +161,13 @@ class ChallengeTests(unittest.TestCase):
         self.assertEqual(result["status"], "move")
         result = session.advance(self.face(x=.7, width=.23), 1.8)
         self.assertEqual(result["status"], "move")
-        self.assertIn("tanpa menoleh", result["instruction"])
+        self.assertIn("arah wajah", result["instruction"])
         self.assertFalse(result["passed"])
-        session.advance(self.face(x=.7), 1.9)
-        self.assertTrue(session.advance(self.face(x=.7), 2.0)["passed"])
+        session.advance(self.face(yaw=0), 1.9)
+        session.advance(self.face(yaw=18), 2.0)
+        session.advance(self.face(yaw=19), 2.1)
+        session.advance(self.face(yaw=1), 2.2)
+        self.assertTrue(session.advance(self.face(yaw=2), 2.3)["passed"])
 
     def test_long_tracking_loss_during_move_requires_new_blink(self):
         session = Session(created_at=1)

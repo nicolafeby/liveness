@@ -57,6 +57,21 @@ class DetectorTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             Detector().observe(frame)
 
+    def test_turn_mode_handles_frame_without_face(self):
+        detector = Detector()
+        image = np.full((200, 200, 3), 120, dtype=np.uint8)
+        _, data = cv2.imencode(".jpg", image)
+        observation = detector.observe(data.tobytes(), detect_turn=True)
+        self.assertEqual(observation.face_count, 0)
+        self.assertIsNone(observation.face_yaw)
+
+    def test_yaw_proxy_uses_nose_relative_to_eyes(self):
+        face = np.zeros(15, dtype=np.float32)
+        face[4:10] = [20, 20, 80, 20, 50, 50]
+        self.assertAlmostEqual(Detector.yaw_from_landmarks(face), 0)
+        face[8] = 65
+        self.assertGreater(Detector.yaw_from_landmarks(face), 15)
+
     def test_eye_pair_can_combine_primary_and_fallback_detections(self):
         detector = self.detector_with_fixed_face()
 

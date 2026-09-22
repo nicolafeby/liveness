@@ -18,13 +18,13 @@ sessions = SessionStore()
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 
-def observe_frame(data: bytes, allow_luma: bool = False):
+def observe_frame(data: bytes, allow_luma: bool = False, detect_turn: bool = False):
     if not data or len(data) > MAX_IMAGE_BYTES:
         raise ValueError("Gambar harus berukuran 1 byte sampai 5 MB")
     if not (data.startswith(b"\xff\xd8\xff") or data.startswith(b"\x89PNG\r\n\x1a\n")
             or (allow_luma and data.startswith(b"LVY1"))):
         raise ValueError("Gunakan gambar JPEG atau PNG")
-    return detector.observe(data)
+    return detector.observe(data, detect_turn=detect_turn)
 
 
 @app.get("/health")
@@ -47,7 +47,9 @@ async def submit_frame(session_id: str, image: UploadFile = File(...)):
     if not data or len(data) > MAX_IMAGE_BYTES:
         raise HTTPException(status_code=413, detail="Gambar harus berukuran 1 byte sampai 5 MB")
     try:
-        observation = await run_in_threadpool(observe_frame, data)
+        state = sessions.get(session_id)
+        observation = await run_in_threadpool(
+            observe_frame, data, False, state is not None and state["status"] == ChallengeStage.MOVE.value)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     result = sessions.advance(session_id, observation)
@@ -80,7 +82,9 @@ async def stream_frames(websocket: WebSocket, session_id: str):
                                            "data": None, "errors": None})
                 continue
             try:
-                observation = await run_in_threadpool(observe_frame, data, True)
+                state = sessions.get(session_id)
+                observation = await run_in_threadpool(
+                    observe_frame, data, True, state is not None and state["status"] == ChallengeStage.MOVE.value)
             except ValueError as exc:
                 await websocket.send_json({"success": False, "message": str(exc),
                                            "data": None, "errors": None})

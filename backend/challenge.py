@@ -1,7 +1,6 @@
 """State machine for a blink and movement challenge."""
 from dataclasses import dataclass, field
 from enum import Enum
-from secrets import choice
 from threading import Lock
 from time import monotonic
 from uuid import uuid4
@@ -14,6 +13,8 @@ ALIGNMENT_FRAMES = 2
 BLINK_WAIT_FRAMES = 4
 MAX_BLINK_SECONDS = 1.5
 MOVE_TRACKING_GRACE_SECONDS = 2.0
+TURN_YAW_DEGREES = 15.0
+FRONT_YAW_DEGREES = 8.0
 EYES_NOT_VISIBLE = "Mata belum terlihat jelas. Hadap kamera dan pastikan area mata tidak tertutup."
 BLINK_NOT_DETECTED = "Kedipan belum terdeteksi. Coba kedip sekali lagi."
 
@@ -34,7 +35,7 @@ class ChallengeStage(str, Enum):
             ChallengeStage.OPEN: "Hadapkan wajah ke kamera dan pastikan kedua mata terlihat jelas.",
             ChallengeStage.BLINK: "Kedipkan kedua mata sekali.",
             ChallengeStage.REOPEN: "Buka kembali kedua mata",
-            ChallengeStage.MOVE: "Geser kepala ke kiri atau kanan dalam bingkai",
+            ChallengeStage.MOVE: "Menoleh sedikit ke kiri atau kanan",
             ChallengeStage.PASSED: "Verifikasi selesai",
             ChallengeStage.FAILED: "Verifikasi gagal",
         }[self]
@@ -69,13 +70,15 @@ class Session:
     baseline_y: float | None = None
     baseline_width: float | None = None
     baseline_height: float | None = None
-    move_direction: int = 1
     aligned_frames: int = 0
     closed_frames: int = 0
     blink_closed_at: float | None = None
     reopened_frames: int = 0
     blink_wait_frames: int = 0
     moved_frames: int = 0
+    turn_confirmed: bool = False
+    returned_frames: int = 0
+    baseline_yaw: float | None = None
     move_tracking_lost_at: float | None = None
     frames: int = 0
     last_frame_at: float = 0.0
@@ -88,6 +91,9 @@ class Session:
         self.reopened_frames = 0
         self.blink_wait_frames = 0
         self.moved_frames = 0
+        self.turn_confirmed = False
+        self.returned_frames = 0
+        self.baseline_yaw = None
         self.move_tracking_lost_at = None
         self.baseline_x = None
         self.baseline_y = None
@@ -103,6 +109,7 @@ class Session:
     def tracking_issue(self, now: float, message: str) -> dict:
         if self.stage == ChallengeStage.MOVE:
             self.moved_frames = 0
+            self.returned_frames = 0
             if self.move_tracking_lost_at is None:
                 self.move_tracking_lost_at = now
             if now - self.move_tracking_lost_at < MOVE_TRACKING_GRACE_SECONDS:
@@ -146,14 +153,11 @@ class Session:
             self.stage = ChallengeStage.BLINK
         elif self.stage == ChallengeStage.OPEN:
             return self.result(EYES_NOT_VISIBLE)
-        elif self.stage in (ChallengeStage.BLINK, ChallengeStage.REOPEN, ChallengeStage.MOVE) and (
+        elif self.stage in (ChallengeStage.BLINK, ChallengeStage.REOPEN) and (
             not self.stable_face(observation)
-            or (self.stage != ChallengeStage.MOVE
-                and abs(observation.face_center_x - self.baseline_x) > .10)
+            or abs(observation.face_center_x - self.baseline_x) > .10
         ):
-            message = ("Hadap kamera dan geser kepala tanpa menoleh" if self.stage == ChallengeStage.MOVE
-                       else "Jaga wajah tetap pada jarak dan tinggi yang sama")
-            return self.tracking_issue(now, message)
+            return self.tracking_issue(now, "Jaga wajah tetap pada jarak dan tinggi yang sama")
         elif self.stage == ChallengeStage.BLINK and not observation.eyes_visible:
             self.blink_wait_frames = 0
             self.closed_frames = 1
@@ -178,20 +182,34 @@ class Session:
             else:
                 self.reopened_frames = 0
         elif self.stage == ChallengeStage.MOVE:
+            if observation.face_yaw is None:
+                return self.tracking_issue(now, "Hadapkan wajah ke kamera agar arah wajah terbaca")
             self.move_tracking_lost_at = None
-            if (observation.eyes_visible
-                    and (observation.face_center_x - self.baseline_x) * self.move_direction >= .15):
-                self.moved_frames += 1
-                if self.moved_frames >= 2:
-                    self.stage = ChallengeStage.PASSED
+            if self.baseline_yaw is None:
+                self.baseline_yaw = observation.face_yaw
+                return self.result()
+            turn_change = abs(observation.face_yaw - self.baseline_yaw)
+            if not self.turn_confirmed:
+                if turn_change >= TURN_YAW_DEGREES:
+                    self.moved_frames += 1
+                    if self.moved_frames >= 2:
+                        self.turn_confirmed = True
+                else:
+                    self.moved_frames = 0
             else:
-                self.moved_frames = 0
+                if turn_change <= FRONT_YAW_DEGREES:
+                    self.returned_frames += 1
+                else:
+                    self.returned_frames = 0
+                if self.returned_frames >= 2:
+                    self.stage = ChallengeStage.PASSED
         return self.result()
 
     def result(self, message: str | None = None) -> dict:
         if message is None and self.stage == ChallengeStage.MOVE:
-            message = ("Geser kepala ke kanan tanpa menoleh" if self.move_direction == 1
-                       else "Geser kepala ke kiri tanpa menoleh")
+            message = ("Kembali menghadap kamera" if self.turn_confirmed
+                       else "Hadap kamera sebentar" if self.baseline_yaw is None
+                       else "Menoleh sedikit ke kiri atau kanan")
         return {"status": self.stage.value, "passed": self.stage == ChallengeStage.PASSED,
                 "instruction": message or self.stage.instruction, "frames_processed": self.frames}
 
@@ -205,7 +223,7 @@ class SessionStore:
         with self._lock:
             self._prune()
             session_id = uuid4().hex
-            session = Session(move_direction=choice((-1, 1)))
+            session = Session()
             self._sessions[session_id] = session
             return session_id, session.result()
 

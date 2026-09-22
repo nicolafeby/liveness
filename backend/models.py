@@ -10,3 +10,4 @@ class Observation:
     face_width: float = 0.0
     face_height: float = 0.0
     lighting: str | None = None
+    face_yaw: float | None = None
