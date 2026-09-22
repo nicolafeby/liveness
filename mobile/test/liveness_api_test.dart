@@ -13,6 +13,7 @@ void main() {
         if (request.uri.path == '/sessions') {
           expect(request.method, 'POST');
           request.response.statusCode = 201;
+          request.response.headers.contentType = ContentType.json;
           request.response.write(
             jsonEncode({
               'success': true,
