@@ -68,7 +68,7 @@ jobs:
         run: flutter test
 
       - name: Build Android APK
-        run: flutter build apk --release
+        run: flutter build apk --release --build-number "$GITHUB_RUN_NUMBER"
 
       - name: Save APK for distribution
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -88,6 +88,8 @@ jobs:
         working-directory: mobile
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 5
 
       - name: Download Android APK
         uses: actions/download-artifact@v4
@@ -121,7 +123,8 @@ jobs:
           FIREBASE_TESTER_GROUPS: ${{ vars.FIREBASE_TESTER_GROUPS }}
         run: |
           app_id="$(python3 -c 'import json; print(json.load(open("android/app/google-services.json"))["client"][0]["client_info"]["mobilesdk_app_id"])')"
+          release_notes="$(git log -5 --pretty=format:'- %s')"
           firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
             --app "$app_id" \
             --groups "$FIREBASE_TESTER_GROUPS" \
-            --release-notes "GitHub commit ${GITHUB_SHA}"
+            --release-notes "$release_notes"
