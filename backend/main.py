@@ -1,10 +1,17 @@
 """HTTP API for a basic camera liveness challenge."""
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from challenge import SessionStore, TTL_SECONDS
 from detector import Detector
+from responses import (http_exception_handler, success,
+                       unexpected_exception_handler, validation_exception_handler)
 
 app = FastAPI(title="Liveness Detection API", version="0.1.0")
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, unexpected_exception_handler)
 detector = Detector()
 sessions = SessionStore()
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -12,13 +19,14 @@ MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return success("Layanan aktif", {"status": "ok"})
 
 
 @app.post("/sessions", status_code=201)
 def create_session():
     session_id, state = sessions.create()
-    return {"session_id": session_id, "expires_in_seconds": TTL_SECONDS, **state}
+    return success("Sesi berhasil dibuat",
+                   {"session_id": session_id, "expires_in_seconds": TTL_SECONDS, **state}, 201)
 
 
 @app.post("/sessions/{session_id}/frames")
@@ -35,4 +43,4 @@ async def submit_frame(session_id: str, image: UploadFile = File(...)):
     result = sessions.advance(session_id, observation)
     if result is None:
         raise HTTPException(status_code=404, detail="Sesi tidak ditemukan atau kedaluwarsa")
-    return result
+    return success("Frame berhasil diproses", result)
