@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:liveness_flutter/src/liveness/bloc/liveness_event.dart';
-import 'package:liveness_flutter/src/liveness/bloc/liveness_state.dart';
-import 'package:liveness_flutter/src/core/liveness_api.dart';
-import 'package:liveness_flutter/src/core/color_frame.dart';
-import 'package:liveness_flutter/src/liveness/models/liveness_status.dart';
+import 'package:liveness_verify_flutter/src/liveness/bloc/liveness_event.dart';
+import 'package:liveness_verify_flutter/src/liveness/bloc/liveness_state.dart';
+import 'package:liveness_verify_flutter/src/core/liveness_api.dart';
+import 'package:liveness_verify_flutter/src/core/color_frame.dart';
+import 'package:liveness_verify_flutter/src/liveness/models/liveness_status.dart';
 
 class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
   LivenessBloc({LivenessApi? api}) : _api = api ?? LivenessApi(), super(const LivenessState()) {

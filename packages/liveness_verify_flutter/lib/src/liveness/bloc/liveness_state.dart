@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
-import 'package:liveness_flutter/src/liveness/models/liveness_status.dart';
+import 'package:liveness_verify_flutter/src/liveness/models/liveness_status.dart';
 
 class LivenessState {
   const LivenessState({

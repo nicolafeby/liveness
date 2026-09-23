@@ -4,11 +4,11 @@ import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:liveness_flutter/src/liveness/bloc/liveness_bloc.dart';
-import 'package:liveness_flutter/src/liveness/bloc/liveness_event.dart';
-import 'package:liveness_flutter/src/liveness/bloc/liveness_state.dart';
-import 'package:liveness_flutter/src/liveness/models/liveness_status.dart';
-import 'package:liveness_flutter/src/core/liveness_api.dart';
+import 'package:liveness_verify_flutter/src/liveness/bloc/liveness_bloc.dart';
+import 'package:liveness_verify_flutter/src/liveness/bloc/liveness_event.dart';
+import 'package:liveness_verify_flutter/src/liveness/bloc/liveness_state.dart';
+import 'package:liveness_verify_flutter/src/liveness/models/liveness_status.dart';
+import 'package:liveness_verify_flutter/src/core/liveness_api.dart';
 
 class LivenessScreen extends StatefulWidget {
   const LivenessScreen({super.key, this.baseUrl, this.onSuccess, this.onCancel});

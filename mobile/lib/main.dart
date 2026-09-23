@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:liveness_flutter/liveness_flutter.dart';
+import 'package:liveness_verify_flutter/liveness_verify_flutter.dart';
 
 const _mobileApiUrl = String.fromEnvironment('LIVENESS_API_URL', defaultValue: 'http://127.0.0.1:8000');
 

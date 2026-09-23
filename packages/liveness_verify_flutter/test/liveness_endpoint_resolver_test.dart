@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:liveness_flutter/src/core/liveness_endpoint_resolver.dart';
+import 'package:liveness_verify_flutter/src/core/liveness_endpoint_resolver.dart';
 
 void main() {
   test('resolves api_url from discovery endpoint', () async {

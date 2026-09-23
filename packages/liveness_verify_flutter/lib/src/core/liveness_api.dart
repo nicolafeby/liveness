@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
-import 'package:liveness_flutter/src/liveness/models/liveness_result.dart';
-import 'package:liveness_flutter/src/liveness/models/liveness_session.dart';
+import 'package:liveness_verify_flutter/src/liveness/models/liveness_result.dart';
+import 'package:liveness_verify_flutter/src/liveness/models/liveness_session.dart';
 
 import 'liveness_endpoint_resolver.dart';
 

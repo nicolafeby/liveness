@@ -29,7 +29,7 @@ The [Flutter documentation](https://docs.flutter.dev/) provides tutorials, sampl
 
 ## Liveness Backend
 
-API response models use `json_serializable`. After changing fields or annotations under `packages/liveness_flutter/lib/src/liveness/models/`, run `flutter pub run build_runner build --delete-conflicting-outputs` from `packages/liveness_flutter/` and commit the generated `.g.dart` files.
+API response models use `json_serializable`. After changing fields or annotations under `packages/liveness_verify_flutter/lib/src/liveness/models/`, run `flutter pub run build_runner build --delete-conflicting-outputs` from `packages/liveness_verify_flutter/` and commit the generated `.g.dart` files.
 
 Run `./script/run-backend.sh` from the project root, then start the application on an Android device connected over USB. The script enables `adb reverse tcp:8000 tcp:8000`; the application uses `http://127.0.0.1:8000` by default. It creates a session, opens a WebSocket, sends front-camera frames one at a time after receiving each server response, and displays instructions and results from the backend. Tap **Coba lagi** ("Try again") to create a new session after a failure.
 
@@ -39,21 +39,21 @@ For APKs distributed by GitHub Actions, set the `LIVENESS_API_URL` variable in t
 
 ## Using the Flutter Package
 
-The package's public entry point is `package:liveness_flutter/liveness_flutter.dart`, and its source is under `packages/liveness_flutter`. Consumers can install it directly as a Git dependency:
+The package's public entry point is `package:liveness_verify_flutter/liveness_verify_flutter.dart`, and its source is under `packages/liveness_verify_flutter`. Consumers can install it directly as a Git dependency:
 
 ```yaml
 dependencies:
-  liveness_flutter:
+  liveness_verify_flutter:
     git:
       url: https://github.com/nicolafeby/liveness.git
       ref: liveness-v1.0.2
-      path: packages/liveness_flutter
+      path: packages/liveness_verify_flutter
 ```
 
 The simplest usage does not require a URL:
 
 ```dart
-import 'package:liveness_flutter/liveness_flutter.dart';
+import 'package:liveness_verify_flutter/liveness_verify_flutter.dart';
 
 LivenessScreen(
   onSuccess: (image) {

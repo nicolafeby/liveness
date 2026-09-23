@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:liveness_flutter/src/core/liveness_api.dart';
-import 'package:liveness_flutter/src/core/liveness_endpoint_resolver.dart';
-import 'package:liveness_flutter/src/liveness/models/liveness_status.dart';
+import 'package:liveness_verify_flutter/src/core/liveness_api.dart';
+import 'package:liveness_verify_flutter/src/core/liveness_endpoint_resolver.dart';
+import 'package:liveness_verify_flutter/src/liveness/models/liveness_status.dart';
 
 void main() {
   test('creates an HTTP session and exchanges binary frames over WebSocket', () async {

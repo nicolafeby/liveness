@@ -1,4 +1,4 @@
-# Liveness Flutter
+# Liveness Verify Flutter
 
 Flutter client for the liveness service in this repository. Consumer applications
 can use the package directly without configuring a server URL.
@@ -7,7 +7,7 @@ The package uses the project's configured liveness service by default. You can
 also deploy and use your own backend.
 
 ```dart
-import 'package:liveness_flutter/liveness_flutter.dart';
+import 'package:liveness_verify_flutter/liveness_verify_flutter.dart';
 
 LivenessScreen(
   onSuccess: (image) {
@@ -24,11 +24,11 @@ The package can be installed directly from GitHub:
 
 ```yaml
 dependencies:
-  liveness_flutter:
+  liveness_verify_flutter:
     git:
       url: https://github.com/nicolafeby/research-liveness.git
       ref: liveness-v1.0.1
-      path: packages/liveness_flutter
+      path: packages/liveness_verify_flutter
 ```
 
 ## Using Your Own Backend
