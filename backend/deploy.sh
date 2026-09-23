@@ -3,8 +3,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-container_name=research-liveness-backend
-image_name=research-liveness-backend
+container_name=liveness-backend
+image_name=liveness-backend
 host_port=18080
 previous_name="${container_name}-previous"
 image_tag="${image_name}:${GITHUB_SHA:-local}"
