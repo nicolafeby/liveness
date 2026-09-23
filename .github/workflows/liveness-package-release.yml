@@ -7,12 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Existing tag to release, for example liveness-v1.0.0
+        description: Existing tag to release, for example liveness-v0.1.0
         required: true
         type: string
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release:
@@ -46,6 +47,29 @@ jobs:
         with:
           ref: ${{ steps.release.outputs.tag }}
 
+      - name: Validate tag matches package version
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          package_version="$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml)"
+          tag_version="${RELEASE_TAG#liveness-v}"
+
+          if [ -z "$package_version" ]; then
+            echo 'No version found in pubspec.yaml'
+            exit 1
+          fi
+
+          if [ "$tag_version" != "$package_version" ]; then
+            echo "Tag version $tag_version does not match pubspec version $package_version"
+            exit 1
+          fi
+
+      # Provisions the short-lived pub.dev OIDC credential. The Dart executable
+      # is subsequently provided by the Flutter SDK below.
+      - name: Set up pub.dev authentication
+        if: github.event_name == 'push'
+        uses: dart-lang/setup-dart@v1
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -61,6 +85,13 @@ jobs:
 
       - name: Test
         run: flutter test
+
+      - name: Validate pub.dev package
+        run: dart pub publish --dry-run
+
+      - name: Publish to pub.dev
+        if: github.event_name == 'push'
+        run: dart pub publish --force
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
