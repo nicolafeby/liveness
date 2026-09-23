@@ -2,6 +2,9 @@ name: Backend PR check
 
 on:
   pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-pr-check.yml'
 
 permissions:
   contents: read

@@ -2,6 +2,9 @@ name: Liveness package PR check
 
 on:
   pull_request:
+    paths:
+      - 'packages/liveness_flutter/**'
+      - '.github/workflows/liveness-package-pr-check.yml'
 
 permissions:
   contents: read
