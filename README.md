@@ -1,79 +1,79 @@
 # Liveness Detection
 
-Prototipe end-to-end untuk memverifikasi bahwa wajah di depan kamera berasal dari pengguna yang aktif, bukan sekadar gambar statis. Proyek ini menggabungkan aplikasi Flutter sebagai pengambil frame kamera dan API FastAPI/OpenCV sebagai pemroses tantangan liveness.
+An end-to-end prototype that verifies whether the face in front of a camera belongs to a live, active user rather than a static image. The project combines a Flutter application for capturing camera frames with a FastAPI/OpenCV API that processes the liveness challenge.
 
 > [!WARNING]
-> Proyek ini masih berupa riset/prototipe. Ambang deteksi belum dikalibrasi pada populasi, perangkat, dan kondisi serangan yang representatif. Jangan gunakan hasilnya sebagai satu-satunya dasar autentikasi, KYC, atau keputusan berisiko tinggi.
+> This project is still a research prototype. Detection thresholds have not been calibrated against representative populations, devices, and attack conditions. Do not use its results as the sole basis for authentication, KYC, or other high-risk decisions.
 
-## Fitur utama
+## Key Features
 
-- Panduan kamera real-time untuk posisi, jarak, jumlah wajah, dan pencahayaan.
-- Active liveness berurutan: wajah sejajar, mata terbuka, berkedip, menoleh, lalu kembali menghadap kamera.
-- Passive anti-spoofing pada beberapa frame menggunakan MiniFASNetV2 ONNX.
-- Deteksi wajah dan mata dengan OpenCV Haar Cascade serta estimasi arah wajah dari landmark YuNet.
-- Komunikasi mobile–backend melalui HTTP untuk membuat sesi dan WebSocket untuk mengirim frame.
-- Frame diproses di memori dan tidak disimpan oleh backend.
-- Pengujian unit untuk state machine, detektor, protokol stream, konversi frame, dan klien API.
-- Docker deployment backend dan distribusi APK Android melalui Firebase App Distribution.
+- Real-time camera guidance for position, distance, face count, and lighting.
+- Sequential active liveness checks: align the face, keep the eyes open, blink, turn, and face the camera again.
+- Passive anti-spoofing over multiple frames using MiniFASNetV2 ONNX.
+- Face and eye detection with OpenCV Haar cascades, plus face-direction estimation from YuNet landmarks.
+- HTTP session creation and WebSocket frame streaming between the mobile app and backend.
+- In-memory frame processing; the backend does not save frames.
+- Unit tests for the state machine, detectors, streaming protocol, frame conversion, and API client.
+- Docker backend deployment and Android APK distribution through Firebase App Distribution.
 
-## Arsitektur
+## Architecture
 
 ```text
-Kamera depan Flutter
+Flutter front camera
        │
-       │ frame BGR LVC1 (WebSocket)
+       │ LVC1 BGR frames (WebSocket)
        ▼
-FastAPI ──► OpenCV Haar / YuNet ──► observasi wajah, mata, cahaya, arah
+FastAPI ──► OpenCV Haar / YuNet ──► face, eye, light, and direction observations
        │
-       ├──► MiniFASNetV2 ─────────► skor passive anti-spoofing
+       ├──► MiniFASNetV2 ─────────► passive anti-spoofing score
        │
-       └──► state machine ────────► instruksi / passed / failed
+       └──► state machine ────────► instruction / passed / failed
                     │
-                    └─────────────► UI Flutter
+                    └─────────────► Flutter UI
 ```
 
-Alur verifikasi yang diterapkan:
+The verification flow is:
 
-1. Wajah tunggal harus berada di tengah dengan ukuran yang sesuai selama dua frame.
-2. Kedua mata harus terlihat, kemudian pengguna diminta berkedip.
-3. Mata harus kembali terbuka pada dua frame dalam waktu maksimal 1,5 detik.
-4. Pengguna menoleh sedikit ke kiri atau kanan pada dua frame, lalu kembali menghadap kamera pada dua frame.
-5. Tantangan hanya dinyatakan berhasil jika tersedia sedikitnya lima sampel passive anti-spoofing dan median skor wajah asli mencapai ambang `0.5`.
+1. One face must remain centered at an appropriate size for two frames.
+2. Both eyes must be visible, after which the user is asked to blink.
+3. The eyes must reopen for two frames within 1.5 seconds.
+4. The user turns slightly left or right for two frames, then faces the camera again for two frames.
+5. The challenge passes only when at least five passive anti-spoofing samples are available and the median real-face score reaches the `0.5` threshold.
 
-Sesi berlaku selama 120 detik, dibatasi 180 frame, dan menerima frame dengan interval minimal 80 ms. Aplikasi mobile mengirim lebih sering saat tahap kedip (sekitar 100 ms) dan sekitar 300 ms pada tahap lain.
+Sessions last 120 seconds, are limited to 180 frames, and accept frames at a minimum interval of 80 ms. The mobile app sends more frequently during the blink stage (about 100 ms) and about every 300 ms during other stages.
 
-## Struktur repositori
+## Repository Structure
 
 ```text
 .
-├── backend/                 # FastAPI, state machine, OpenCV, dan model ONNX
-│   ├── main.py              # Endpoint HTTP dan WebSocket
-│   ├── challenge.py         # Aturan serta status tantangan
-│   ├── detector.py          # Deteksi wajah, mata, cahaya, yaw, anti-spoofing
-│   ├── *_test.py            # Pengujian backend
+├── backend/                 # FastAPI, state machine, OpenCV, and ONNX models
+│   ├── main.py              # HTTP and WebSocket endpoints
+│   ├── challenge.py         # Challenge rules and state
+│   ├── detector.py          # Face, eye, light, yaw, and anti-spoofing detection
+│   ├── *_test.py            # Backend tests
 │   ├── Dockerfile
-│   └── README.md            # Detail algoritma, API, dan deployment backend
-├── mobile/                  # Aplikasi Flutter
-│   ├── lib/core/            # API client dan encoding frame kamera
-│   ├── lib/liveness/        # BLoC, model, dan layar liveness
-│   ├── test/                # Pengujian Flutter
-│   └── README.md            # Detail CI dan Firebase App Distribution
-├── script/run-backend.sh    # Backend lokal + adb reverse
-└── .github/workflows/       # Deployment backend dan pipeline mobile
+│   └── README.md            # Algorithm, API, and backend deployment details
+├── mobile/                  # Flutter application
+│   ├── lib/core/            # API client and camera-frame encoding
+│   ├── lib/liveness/        # BLoC, models, and liveness screen
+│   ├── test/                # Flutter tests
+│   └── README.md            # CI and Firebase App Distribution details
+├── script/run-backend.sh    # Local backend + adb reverse
+└── .github/workflows/       # Backend deployment and mobile pipelines
 ```
 
-## Prasyarat
+## Prerequisites
 
-- Python yang kompatibel dengan `backend/requirements.txt` (image Docker memakai Python 3.12).
-- Flutter 3.41.6 dan Dart yang sesuai; versi Flutter dipatok melalui FVM di `mobile/.fvmrc`.
-- Android SDK dan perangkat Android dengan USB debugging untuk alur lokal yang paling sederhana.
-- `adb` tersedia pada `PATH`.
+- A Python version compatible with `backend/requirements.txt` (the Docker image uses Python 3.12).
+- Flutter 3.41.6 and its matching Dart version; Flutter is pinned through `mobile/.fvmrc`.
+- The Android SDK and an Android device with USB debugging for the simplest local workflow.
+- `adb` available on `PATH`.
 
-Struktur iOS tersedia dan izin kamera sudah dikonfigurasi, tetapi otomatisasi build/distribusi dalam repositori saat ini berfokus pada Android.
+The iOS project structure and camera permission are configured, but the repository's current build and distribution automation targets Android.
 
-## Menjalankan secara lokal
+## Running Locally
 
-### 1. Siapkan backend
+### 1. Set Up the Backend
 
 ```sh
 cd backend
@@ -83,30 +83,30 @@ pip install -r requirements.txt
 cd ..
 ```
 
-Hubungkan perangkat Android, aktifkan USB debugging, lalu pastikan perangkat terdeteksi:
+Connect an Android device, enable USB debugging, and verify the connection:
 
 ```sh
 adb devices
 ```
 
-Jalankan backend dari root repositori:
+Start the backend from the repository root:
 
 ```sh
 ./script/run-backend.sh
 ```
 
-Skrip tersebut memasang `adb reverse tcp:8000 tcp:8000` dan menjalankan Uvicorn pada `127.0.0.1:8000` dengan hot reload. Dokumentasi OpenAPI tersedia di <http://127.0.0.1:8000/docs>.
+The script configures `adb reverse tcp:8000 tcp:8000` and runs Uvicorn at `127.0.0.1:8000` with hot reload. OpenAPI documentation is available at <http://127.0.0.1:8000/docs>.
 
-Backend juga dapat dijalankan tanpa perangkat Android:
+You can also run the backend without an Android device:
 
 ```sh
 cd backend
 .venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 2. Jalankan aplikasi Flutter
+### 2. Run the Flutter App
 
-Di terminal lain:
+In another terminal:
 
 ```sh
 cd mobile
@@ -114,25 +114,25 @@ fvm flutter pub get
 fvm flutter run
 ```
 
-URL default aplikasi adalah `http://127.0.0.1:8000`, sehingga dapat langsung digunakan bersama `adb reverse`. Untuk perangkat di jaringan yang sama, arahkan aplikasi ke alamat backend yang dapat diakses perangkat:
+The default application URL is `http://127.0.0.1:8000`, so it works directly with `adb reverse`. For a device on the same network, point the app to a backend address reachable from that device:
 
 ```sh
 fvm flutter run \
   --dart-define=LIVENESS_API_URL=http://192.168.1.10:8000
 ```
 
-Untuk penggunaan di luar pengembangan lokal, gunakan HTTPS/WSS dan konfigurasi keamanan platform yang sesuai. Android saat ini mengizinkan cleartext traffic untuk kebutuhan pengembangan.
+Use HTTPS/WSS and appropriate platform security settings outside local development. Android currently permits cleartext traffic for development.
 
-## API dan protokol frame
+## API and Frame Protocol
 
-| Method | Endpoint | Kegunaan |
+| Method | Endpoint | Purpose |
 | --- | --- | --- |
-| `GET` | `/health` | Health check proses backend |
-| `POST` | `/sessions` | Membuat sesi liveness baru |
-| `POST` | `/sessions/{session_id}/frames` | Mengirim satu JPEG/PNG melalui multipart field `image` |
-| `WS` | `/sessions/{session_id}/stream` | Bertukar frame biner dan hasil secara berurutan |
+| `GET` | `/health` | Check backend process health |
+| `POST` | `/sessions` | Create a liveness session |
+| `POST` | `/sessions/{session_id}/frames` | Send one JPEG/PNG in the multipart `image` field |
+| `WS` | `/sessions/{session_id}/stream` | Exchange binary frames and results sequentially |
 
-Contoh penggunaan HTTP:
+HTTP examples:
 
 ```sh
 curl -X POST http://127.0.0.1:8000/sessions
@@ -141,18 +141,18 @@ curl -X POST \
   http://127.0.0.1:8000/sessions/SESSION_ID/frames
 ```
 
-Aplikasi mobile menggunakan format biner internal `LVC1` melalui WebSocket:
+The mobile app uses the internal `LVC1` binary format over WebSocket:
 
 ```text
-4 byte  : ASCII "LVC1"
-2 byte  : lebar, unsigned big-endian
-2 byte  : tinggi, unsigned big-endian
-N byte  : piksel BGR, tiga byte per piksel
+4 bytes : ASCII "LVC1"
+2 bytes : width, unsigned big-endian
+2 bytes : height, unsigned big-endian
+N bytes : BGR pixels, three bytes per pixel
 ```
 
-Frame kamera dirotasi ke posisi tegak dan diperkecil hingga sisi terpanjang maksimal 640 piksel sebelum dikirim. WebSocket mengharuskan pola satu frame lalu satu respons; ukuran payload maksimal 5 MB. Endpoint HTTP hanya menerima JPEG/PNG.
+Camera frames are rotated upright and scaled so the longest side is no more than 640 pixels. The WebSocket protocol requires one frame followed by one response and limits payloads to 5 MB. The HTTP endpoint accepts JPEG/PNG only.
 
-Respons API memakai envelope berikut:
+API responses use this envelope:
 
 ```json
 {
@@ -168,79 +168,90 @@ Respons API memakai envelope berikut:
 }
 ```
 
-Status tantangan adalah `align`, `open`, `blink`, `reopen`, `move`, `passed`, atau `failed`.
+The Indonesian strings above are literal values produced by the API. Challenge states are `align`, `open`, `blink`, `reopen`, `move`, `passed`, and `failed`.
 
-## Pengujian
+## Testing
 
-Setiap pull request wajib melewati pemeriksaan package liveness, aplikasi mobile,
-dan backend sebelum dapat digabungkan ke branch utama.
+Every pull request must pass checks for the liveness package, mobile application, and backend before it can be merged into the main branch.
 
-Backend memakai `unittest`:
+Backend tests use `unittest`:
 
 ```sh
 cd backend
 .venv/bin/python -m unittest discover -p 'test_*.py'
 ```
 
-Mobile memakai Flutter Test:
+Mobile tests use Flutter Test:
 
 ```sh
 cd mobile
 fvm flutter test
 ```
 
-Pemeriksaan statis dapat dijalankan dengan:
+Run static analysis with:
 
 ```sh
 cd mobile
 fvm flutter analyze
 ```
 
-Setelah mengubah model beranotasi di `packages/liveness_flutter/lib/src/liveness/models/`, regenerasi serializer:
+After changing annotated models under `packages/liveness_flutter/lib/src/liveness/models/`, regenerate serializers:
 
 ```sh
 cd packages/liveness_flutter
 fvm flutter pub run build_runner build --delete-conflicting-outputs
 ```
 
-## Docker dan deployment
+## Docker and Deployment
 
-Menjalankan backend dengan Docker:
+### Use Your Own Backend Server
+
+You can customize the deployment by hosting the code under `backend/` on your own server. The server may run the Python application directly or use the included Dockerfile. A basic Docker deployment is:
 
 ```sh
 docker build -t liveness-backend backend
-docker run --rm -p 8000:8000 liveness-backend
+docker run -d --name liveness-backend --restart unless-stopped \
+  -p 18080:8000 liveness-backend
+curl http://127.0.0.1:18080/health
 ```
 
-Push ke branch `main` yang mengubah `backend/**` menjalankan deployment pada self-hosted runner berlabel `liveness`. Workflow membangun container, menerbitkan backend pada port host `18080`, melakukan health check, dan mengembalikan container sebelumnya jika deployment baru gagal.
+Expose the backend through an HTTPS/WSS endpoint, then configure that base URL as `LIVENESS_API_URL` when building the mobile application. The URL must be reachable from the tester's device. See [backend/README.md](backend/README.md) for Docker, reverse-proxy, health-check, and GitHub Actions deployment details.
 
-Perubahan pada `mobile/**` menjalankan tes Flutter. Push ke `main` atau eksekusi manual kemudian membangun APK release dan mendistribusikannya melalui Firebase App Distribution. Konfigurasi environment GitHub yang diperlukan:
+A push to `main` that changes `backend/**` starts deployment on the self-hosted Linux X64 runner labeled `liveness`. The workflow uses the `research` GitHub environment, builds a container, publishes the backend on host port `18080`, performs a health check, and restores the previous container if the new deployment fails.
 
-| Nama | Jenis | Kegunaan |
-| --- | --- | --- |
-| `LIVENESS_API_URL` | Variable | URL backend untuk APK release |
-| `FIREBASE_TESTER_GROUPS` | Variable | Alias grup tester Firebase |
-| `FIREBASE_SERVICE_ACCOUNT` | Secret | JSON service account Firebase |
-| `FVM_EXECUTABLE` | Variable opsional | Path absolut FVM pada self-hosted runner |
+### GitHub Actions Secrets and Variables
 
-Detail penyiapan runner dan Firebase tersedia di [mobile/README.md](mobile/README.md), sedangkan detail model, ambang deteksi, API, dan deployment backend tersedia di [backend/README.md](backend/README.md).
+Changes under `mobile/**` run Flutter tests. A push to `main` or a manual run then builds a release APK and distributes it through Firebase App Distribution. The required GitHub environment configuration is:
 
-## Batasan dan keamanan
+| Name | GitHub scope | Required | Purpose |
+| --- | --- | --- | --- |
+| `LIVENESS_API_URL` | `research` environment variable | Yes | Public backend base URL embedded in the release APK, for example `https://liveness.example.com` |
+| `FIREBASE_TESTER_GROUPS` | `research` environment variable | Yes | One or more Firebase App Distribution group aliases, separated by commas |
+| `FIREBASE_SERVICE_ACCOUNT` | `research` environment secret | Yes | Complete JSON private key for a service account with the Firebase App Distribution Admin role |
+| `FVM_EXECUTABLE` | Repository variable | Only when FVM cannot be found automatically | Absolute path to the executable on the self-hosted runner, for example `/home/runner/fvm/bin/fvm` |
 
-- MiniFASNetV2 dipakai sebagai model gambar tunggal; belum ada model anti-replay temporal khusus.
-- Ambang cahaya, pose, alignment, dan anti-spoofing bersifat heuristik dan perlu kalibrasi dengan data nyata.
-- Target evaluasi saat ini terutama foto cetak dan tampilan layar; mask/serangan 3D belum tervalidasi.
-- Sesi disimpan dalam memori satu proses dan akan hilang saat backend restart/deploy.
-- Backend belum menyediakan autentikasi, rate limiting, penyimpanan sesi bersama, atau TLS.
-- Aplikasi tidak menyimpan frame pada backend, tetapi data biometrik tetap dikirim melalui jaringan selama sesi. Gunakan koneksi terenkripsi dan kebijakan privasi yang sesuai pada lingkungan nyata.
+Create the `research` environment under **Repository Settings → Environments → New environment**. Add its variables and secret from the environment's configuration page. Add `FVM_EXECUTABLE`, when needed, under **Repository Settings → Secrets and variables → Actions → Variables** because the `ci` job does not use the `research` environment.
 
-## Lisensi dan model pihak ketiga
+Do not add `FIREBASE_SERVICE_ACCOUNT` as a variable or commit it to the repository. Variables are suitable for non-sensitive configuration, while the service-account JSON must remain a secret. The backend deployment workflow currently needs no backend-specific secret or variable; it only references the `research` environment and relies on the self-hosted runner's local Docker access.
 
-Kode proyek dilisensikan dengan [MIT License](LICENSE).
+See [mobile/README.md](mobile/README.md) for runner and Firebase setup, and [backend/README.md](backend/README.md) for model, threshold, API, and backend deployment details.
 
-Repositori juga membundel model pihak ketiga:
+## Limitations and Security
 
-- `face_detection_yunet_2023mar.onnx` dari [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet).
-- `minifasnet_v2.onnx`, konversi ONNX MiniFASNetV2 dari [Silent Face Anti-Spoofing](https://github.com/minivision-ai/Silent-Face-Anti-Spoofing), dengan sumber konversi yang dijelaskan di [backend/README.md](backend/README.md).
+- MiniFASNetV2 is used as a single-image model; there is no dedicated temporal anti-replay model.
+- Lighting, pose, alignment, and anti-spoofing thresholds are heuristic and require calibration with real data.
+- Current evaluation targets primarily printed photos and screen displays; masks and 3D attacks have not been validated.
+- Sessions live in one process's memory and are lost when the backend restarts or is deployed.
+- The backend does not yet provide authentication, rate limiting, shared session storage, or TLS.
+- The backend does not save frames, but biometric data is still transmitted over the network during a session. Use encrypted connections and an appropriate privacy policy in real environments.
 
-Tinjau lisensi dan ketentuan masing-masing model sebelum distribusi atau penggunaan komersial.
+## License and Third-Party Models
+
+Project code is licensed under the [MIT License](LICENSE).
+
+The repository also bundles third-party models:
+
+- `face_detection_yunet_2023mar.onnx` from [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet).
+- `minifasnet_v2.onnx`, an ONNX conversion of MiniFASNetV2 from [Silent Face Anti-Spoofing](https://github.com/minivision-ai/Silent-Face-Anti-Spoofing); its conversion source is documented in [backend/README.md](backend/README.md).
+
+Review each model's license and terms before distribution or commercial use.
