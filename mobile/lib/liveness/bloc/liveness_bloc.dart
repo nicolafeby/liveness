@@ -22,7 +22,14 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
     });
     on<FrameResultReceived>((event, emit) {
       if (event.generation != _generation) return;
-      emit(LivenessState(camera: state.camera, instruction: event.result.instruction, status: event.result.status));
+      emit(
+        LivenessState(
+          camera: state.camera,
+          instruction: event.result.instruction,
+          status: event.result.status,
+          resultImage: event.resultImage,
+        ),
+      );
     });
     on<SessionFailed>((event, emit) {
       if (event.generation != _generation) return;
@@ -110,15 +117,28 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
           final result = await stream.submitFrame(payload);
           if (isClosed || generation != _generation) return;
           status = result.status;
-          add(FrameResultReceived(generation, result));
+          add(
+            FrameResultReceived(
+              generation,
+              result,
+              resultImage: result.status == LivenessStatus.passed ? encodeResultImage(payload) : null,
+            ),
+          );
           if (result.status.isFinished) {
-            if (camera.value.isStreamingImages) await camera.stopImageStream();
+            if (camera.value.isStreamingImages) {
+              await camera.stopImageStream();
+            }
             await stream.close();
             if (identical(_stream, stream)) _stream = null;
           }
         } catch (error) {
           if (!isClosed && generation == _generation) {
-            add(SessionFailed(generation, error is LivenessApiException ? error.message : 'Gagal mengirim frame ke server'));
+            add(
+              SessionFailed(
+                generation,
+                error is LivenessApiException ? error.message : 'Gagal mengirim frame ke server',
+              ),
+            );
           }
           await stream.close();
           if (identical(_stream, stream)) _stream = null;

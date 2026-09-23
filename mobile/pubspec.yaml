@@ -40,6 +40,7 @@ dependencies:
   alice: ^1.2.0
   alice_dio: ^1.2.0
   json_annotation: ^4.12.0
+  image: ^4.10.1
 
 dependency_overrides:
   # 14.x uses AGP 9/Kotlin 2.3 syntax; this app builds with AGP 8.11.

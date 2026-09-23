@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:camera/camera.dart';
 import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
 
 /// Packs an upright, downsampled BGR frame for the backend's LVC1 protocol.
 Uint8List encodeColorFrame(CameraImage frame, int sensorOrientation, DeviceOrientation deviceOrientation) {
@@ -45,9 +46,7 @@ Uint8List encodeColorFrame(CameraImage frame, int sensorOrientation, DeviceOrien
       final vIndex = interleaved
           ? chromaIndex + (nv21 ? 0 : 1)
           : chromaY * vPlane.bytesPerRow + chromaX * (vPlane.bytesPerPixel ?? 1);
-      if (yIndex >= yPlane.bytes.length ||
-          uIndex >= uPlane.bytes.length ||
-          vIndex >= vPlane.bytes.length) {
+      if (yIndex >= yPlane.bytes.length || uIndex >= uPlane.bytes.length || vIndex >= vPlane.bytes.length) {
         throw const FormatException('Data warna kamera tidak lengkap');
       }
       final yy = math.max(0, yPlane.bytes[yIndex] - 16);
@@ -66,4 +65,47 @@ Uint8List encodeColorFrame(CameraImage frame, int sensorOrientation, DeviceOrien
     }
   }
   return output;
+}
+
+/// Converts an upright LVC1 frame into a display-ready JPEG.
+///
+/// The crop matches the portrait face guide (width / height = 1 / 1.18), so
+/// callers can render it with [BoxFit.cover] without losing additional area.
+Uint8List encodeResultImage(Uint8List frame) {
+  if (frame.length < 8 || frame[0] != 76 || frame[1] != 86 || frame[2] != 67 || frame[3] != 49) {
+    throw const FormatException('Frame hasil liveness tidak valid');
+  }
+  final width = frame[4] << 8 | frame[5];
+  final height = frame[6] << 8 | frame[7];
+  if (width < 1 || height < 1 || frame.length != 8 + width * height * 3) {
+    throw const FormatException('Ukuran frame hasil liveness tidak valid');
+  }
+
+  final source = img.Image(width: width, height: height);
+  var offset = 8;
+  for (var y = 0; y < height; y++) {
+    for (var x = 0; x < width; x++) {
+      final blue = frame[offset++];
+      final green = frame[offset++];
+      final red = frame[offset++];
+      source.setPixelRgb(x, y, red, green, blue);
+    }
+  }
+
+  const guideAspectRatio = 1 / 1.18;
+  var cropWidth = width;
+  var cropHeight = (cropWidth / guideAspectRatio).round();
+  if (cropHeight > height) {
+    cropHeight = height;
+    cropWidth = (cropHeight * guideAspectRatio).round();
+  }
+  final cropped = img.copyCrop(
+    source,
+    x: (width - cropWidth) ~/ 2,
+    y: (height - cropHeight) ~/ 2,
+    width: cropWidth,
+    height: cropHeight,
+  );
+  final mirrored = img.flipHorizontal(cropped);
+  return Uint8List.fromList(img.encodeJpg(mirrored, quality: 92));
 }

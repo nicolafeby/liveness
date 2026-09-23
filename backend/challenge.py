@@ -208,10 +208,15 @@ class Session:
                 else:
                     self.moved_frames = 0
             else:
-                if turn_change <= FRONT_YAW_DEGREES:
+                guidance = alignment_instruction(observation)
+                if (turn_change <= FRONT_YAW_DEGREES
+                        and observation.eyes_visible
+                        and guidance is None):
                     self.returned_frames += 1
                 else:
                     self.returned_frames = 0
+                    if turn_change <= FRONT_YAW_DEGREES:
+                        return self.result(guidance or "Buka kedua mata dan hadap kamera")
                 if self.returned_frames >= 2:
                     if (len(self.passive_samples) >= PASSIVE_MIN_SAMPLES
                             and median(sample[1] for sample in self.passive_samples) >= PASSIVE_LIVE_THRESHOLD):

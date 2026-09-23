@@ -152,6 +152,24 @@ class ChallengeTests(unittest.TestCase):
         self.assertFalse(session.advance(self.face(yaw=3), 2.2)["passed"])
         self.assertTrue(session.advance(self.face(yaw=4), 2.3)["passed"])
 
+    def test_final_result_requires_open_eyes_and_aligned_front_face(self):
+        session = Session(created_at=1)
+        for now, eyes in [(1.1, True), (1.2, True), (1.3, True),
+                          (1.4, False), (1.5, True), (1.6, True)]:
+            session.advance(self.face(eyes), now)
+        session.advance(self.face(yaw=0), 1.7)
+        session.advance(self.face(yaw=19), 1.8)
+        session.advance(self.face(yaw=21), 1.9)
+
+        closed = session.advance(self.face(eyes=False, yaw=3), 2.0)
+        self.assertFalse(closed["passed"])
+        self.assertIn("Buka kedua mata", closed["instruction"])
+        misaligned = session.advance(self.face(eyes=True, x=.75, yaw=3), 2.1)
+        self.assertFalse(misaligned["passed"])
+        self.assertEqual(misaligned["instruction"], "Geser wajah ke kiri")
+        self.assertFalse(session.advance(self.face(yaw=3), 2.2)["passed"])
+        self.assertTrue(session.advance(self.face(yaw=3), 2.3)["passed"])
+
     def test_brief_tracking_loss_during_move_does_not_repeat_blink(self):
         session = Session(created_at=1)
         for now, eyes in [(1.1, True), (1.2, True), (1.3, True),

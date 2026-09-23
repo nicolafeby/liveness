@@ -98,8 +98,11 @@ class Detector:
         x1 = max(x0 + 1, min(width, int(face[0] + face[2])))
         y1 = max(y0 + 1, min(height, int(face[1] + face[3])))
         yaw = self.yaw_from_landmarks(face)
+        gray = cv2.equalizeHist(luminance)
+        face_gray = gray[y0:y1, x0:x1]
         return Observation(
             face_count=1,
+            eyes_visible=self.eyes_visible(face_gray),
             face_center_x=(x0 + x1) / (2 * width),
             face_center_y=(y0 + y1) / (2 * height),
             face_width=(x1 - x0) / width,

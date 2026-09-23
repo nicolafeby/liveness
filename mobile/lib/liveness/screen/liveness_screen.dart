@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'dart:math' as math;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -46,7 +47,18 @@ class _LivenessScreenState extends State<LivenessScreen> with SingleTickerProvid
   @override
   Widget build(BuildContext context) => BlocProvider.value(
     value: _bloc,
-    child: BlocBuilder<LivenessBloc, LivenessState>(builder: (context, state) => _buildScreen(context, state)),
+    child: BlocConsumer<LivenessBloc, LivenessState>(
+      listenWhen: (previous, current) =>
+          previous.status != LivenessStatus.passed &&
+          current.status == LivenessStatus.passed &&
+          current.resultImage != null,
+      listener: (context, state) {
+        final image = state.resultImage;
+        if (image == null) return;
+        log('Liveness passed, returning image of length $image');
+      },
+      builder: (context, state) => _buildScreen(context, state),
+    ),
   );
 
   Widget _buildScreen(BuildContext context, LivenessState state) {
