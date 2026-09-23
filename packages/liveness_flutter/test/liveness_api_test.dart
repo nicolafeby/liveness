@@ -55,7 +55,7 @@ void main() {
     });
 
     final resolver = _CountingResolver(Uri.parse('http://127.0.0.1:${server.port}'));
-    final api = LivenessApi(endpointResolver: resolver, enableAlice: false);
+    final api = LivenessApi(endpointResolver: resolver);
     try {
       final session = await api.createSession();
       expect(session.sessionId, 'test-session');

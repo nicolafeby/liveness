@@ -5,24 +5,21 @@ import 'package:dio/dio.dart';
 import 'package:liveness_flutter/src/liveness/models/liveness_result.dart';
 import 'package:liveness_flutter/src/liveness/models/liveness_session.dart';
 
-import 'alice_inspector.dart';
 import 'liveness_endpoint_resolver.dart';
 
 class LivenessApi {
-  LivenessApi({String? baseUrl, bool enableAlice = true, LivenessEndpointResolver? endpointResolver})
+  LivenessApi({String? baseUrl, LivenessEndpointResolver? endpointResolver})
     : _baseUrlOverride = _resolveOverride(baseUrl),
-      _enableAlice = enableAlice,
       _endpointResolver = endpointResolver ?? LivenessEndpointResolver();
 
   static const _buildTimeUrl = String.fromEnvironment('LIVENESS_API_URL');
 
   final Uri? _baseUrlOverride;
-  final bool _enableAlice;
   final LivenessEndpointResolver _endpointResolver;
   Future<Uri>? _resolvedBaseUrl;
   late final Dio _dio = Dio(
     BaseOptions(connectTimeout: const Duration(seconds: 5), receiveTimeout: const Duration(seconds: 10)),
-  )..interceptors.addAll(_enableAlice ? [createAliceDioAdapter()] : []);
+  );
 
   Future<LivenessSession> createSession() async {
     try {

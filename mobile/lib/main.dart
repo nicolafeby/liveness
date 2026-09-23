@@ -17,7 +17,6 @@ class LivenessApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    navigatorKey: aliceInspector.getNavigatorKey(),
     title: 'Liveness Detection',
     debugShowCheckedModeBanner: false,
     theme: ThemeData(useMaterial3: true, fontFamily: 'Roboto'),

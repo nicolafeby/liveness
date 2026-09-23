@@ -1,6 +1,6 @@
 name: liveness_flutter
 description: Reusable Flutter client for the research liveness service.
-version: 1.0.1
+version: 1.0.2
 publish_to: none
 
 environment:
@@ -9,8 +9,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  alice: ^1.2.0
-  alice_dio: ^1.2.0
   camera: ^0.12.0+2
   dio: ^5.10.0
   flutter_bloc: ^9.1.1
