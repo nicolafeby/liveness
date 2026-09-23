@@ -9,11 +9,9 @@ void main() {
   test('encodes upright BGR from row-strided YUV planes', () {
     const sourceWidth = 100;
     const sourceHeight = 120;
-    final y = Uint8List(sourceHeight * 104)
-      ..fillRange(0, sourceHeight * 104, 16);
+    final y = Uint8List(sourceHeight * 104)..fillRange(0, sourceHeight * 104, 16);
     y[0] = 235;
-    final uv = Uint8List((sourceHeight ~/ 2) * 52)
-      ..fillRange(0, (sourceHeight ~/ 2) * 52, 128);
+    final uv = Uint8List((sourceHeight ~/ 2) * 52)..fillRange(0, (sourceHeight ~/ 2) * 52, 128);
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     // ignore: deprecated_member_use
     final frame = CameraImage.fromPlatformData({
@@ -30,12 +28,38 @@ void main() {
     expect(output.sublist(0, 4), [76, 86, 67, 49]);
     expect((output[4] << 8) | output[5], sourceHeight);
     expect((output[6] << 8) | output[7], sourceWidth);
-    expect(output.sublist(8 + (sourceHeight - 1) * 3, 8 + sourceHeight * 3), [
-      255,
-      255,
-      255,
-    ]);
+    expect(output.sublist(8 + (sourceHeight - 1) * 3, 8 + sourceHeight * 3), [255, 255, 255]);
     expect(output.sublist(8, 11), [0, 0, 0]);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  test('limits streamed frame dimensions for mobile uplinks', () {
+    const sourceWidth = 1280;
+    const sourceHeight = 720;
+    final y = Uint8List(sourceWidth * sourceHeight)..fillRange(0, sourceWidth * sourceHeight, 128);
+    final uv = Uint8List(sourceWidth * sourceHeight ~/ 4)..fillRange(0, sourceWidth * sourceHeight ~/ 4, 128);
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    // ignore: deprecated_member_use
+    final frame = CameraImage.fromPlatformData({
+      'format': 35,
+      'width': sourceWidth,
+      'height': sourceHeight,
+      'planes': [
+        {'bytes': y, 'bytesPerRow': sourceWidth, 'bytesPerPixel': 1},
+        {'bytes': uv, 'bytesPerRow': sourceWidth ~/ 2, 'bytesPerPixel': 1},
+        {'bytes': uv, 'bytesPerRow': sourceWidth ~/ 2, 'bytesPerPixel': 1},
+      ],
+    });
+
+    final output = encodeColorFrame(frame, 90, DeviceOrientation.portraitUp);
+    final width = (output[4] << 8) | output[5];
+    final height = (output[6] << 8) | output[7];
+
+    expect(width, 240);
+    expect(height, 427);
+    expect(output.length, 8 + width * height * 3);
+    expect(width, lessThanOrEqualTo(streamedFrameMaxDimension));
+    expect(height, lessThanOrEqualTo(streamedFrameMaxDimension));
     debugDefaultTargetPlatformOverride = null;
   });
 
