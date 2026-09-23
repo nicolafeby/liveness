@@ -4,6 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 container_name=liveness-backend
+legacy_container_name=research-liveness-backend
 image_name=liveness-backend
 host_port=18080
 previous_name="${container_name}-previous"
@@ -17,7 +18,7 @@ port_owners() {
     --format '{{.Names}}'
 }
 
-foreign_port_owners="$(port_owners | grep -vx "$container_name" || true)"
+foreign_port_owners="$(port_owners | grep -Ev "^(${container_name}|${legacy_container_name})$" || true)"
 if [ -n "$foreign_port_owners" ]; then
   echo "Port ${host_port} sedang dipakai container lain:" >&2
   printf '  %s\n' "$foreign_port_owners" >&2
@@ -33,18 +34,32 @@ fi
 docker build --tag "$image_tag" .
 
 had_previous=false
+previous_original_name="$container_name"
 rollback() {
   echo 'Deploy gagal; mengembalikan container sebelumnya.' >&2
   docker rm -f "$container_name" >/dev/null 2>&1 || true
   if [ "$had_previous" = true ]; then
-    docker rename "$previous_name" "$container_name"
-    docker start "$container_name"
+    docker rename "$previous_name" "$previous_original_name"
+    docker start "$previous_original_name"
   fi
 }
 trap rollback ERR
 
+active_container_name=
 if docker container inspect "$container_name" >/dev/null 2>&1; then
-  docker rename "$container_name" "$previous_name"
+  active_container_name="$container_name"
+fi
+if docker container inspect "$legacy_container_name" >/dev/null 2>&1; then
+  if [ -n "$active_container_name" ]; then
+    echo "Container ${container_name} dan ${legacy_container_name} sama-sama ada; periksa runner sebelum deploy." >&2
+    exit 1
+  fi
+  active_container_name="$legacy_container_name"
+fi
+
+if [ -n "$active_container_name" ]; then
+  previous_original_name="$active_container_name"
+  docker rename "$active_container_name" "$previous_name"
   had_previous=true
   docker stop "$previous_name"
 
