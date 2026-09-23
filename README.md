@@ -1,4 +1,4 @@
-# Research Liveness Detection
+# Liveness Detection
 
 Prototipe end-to-end untuk memverifikasi bahwa wajah di depan kamera berasal dari pengguna yang aktif, bukan sekadar gambar statis. Proyek ini menggabungkan aplikasi Flutter sebagai pengambil frame kamera dan API FastAPI/OpenCV sebagai pemroses tantangan liveness.
 
@@ -208,11 +208,11 @@ fvm flutter pub run build_runner build --delete-conflicting-outputs
 Menjalankan backend dengan Docker:
 
 ```sh
-docker build -t research-liveness-backend backend
-docker run --rm -p 8000:8000 research-liveness-backend
+docker build -t liveness-backend backend
+docker run --rm -p 8000:8000 liveness-backend
 ```
 
-Push ke branch `main` yang mengubah `backend/**` menjalankan deployment pada self-hosted runner berlabel `research-liveness`. Workflow membangun container, menerbitkan backend pada port host `18080`, melakukan health check, dan mengembalikan container sebelumnya jika deployment baru gagal.
+Push ke branch `main` yang mengubah `backend/**` menjalankan deployment pada self-hosted runner berlabel `liveness`. Workflow membangun container, menerbitkan backend pada port host `18080`, melakukan health check, dan mengembalikan container sebelumnya jika deployment baru gagal.
 
 Perubahan pada `mobile/**` menjalankan tes Flutter. Push ke `main` atau eksekusi manual kemudian membangun APK release dan mendistribusikannya melalui Firebase App Distribution. Konfigurasi environment GitHub yang diperlukan:
 

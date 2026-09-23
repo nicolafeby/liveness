@@ -23,7 +23,7 @@ Package dapat dipasang langsung dari GitHub:
 dependencies:
   liveness_flutter:
     git:
-      url: https://github.com/nicolafeby/research-liveness.git
+      url: https://github.com/nicolafeby/liveness.git
       ref: liveness-v1.0.1
       path: packages/liveness_flutter
 ```

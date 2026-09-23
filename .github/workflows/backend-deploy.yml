@@ -10,12 +10,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: research-liveness-backend-deploy
+  group: liveness-backend-deploy
   cancel-in-progress: false
 
 jobs:
   deploy:
-    runs-on: [self-hosted, Linux, X64, research-liveness]
+    runs-on: [self-hosted, Linux, X64, liveness]
     environment: research
     steps:
       - uses: actions/checkout@v4

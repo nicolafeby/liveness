@@ -7,7 +7,7 @@ dan `flutter test` melalui workflow
 [mobile-pr-check.yml](../.github/workflows/mobile-pr-check.yml) pada runner GitHub.
 Workflow [mobile-firebase-distribution.yml](../.github/workflows/mobile-firebase-distribution.yml)
 tetap menangani push ke `main` dan eksekusi manual pada self-hosted runner Linux X64
-berlabel `research-liveness` (`ncladrserver`), termasuk build APK dan distribusi melalui
+berlabel `liveness` (`ncladrserver`), termasuk build APK dan distribusi melalui
 Firebase App Distribution memakai environment GitHub `research`.
 
 Runner harus tetap online dan memiliki Android SDK (termasuk build tools dan lisensi yang diperlukan), `git`, Python 3, serta FVM. Workflow mencari FVM pada `PATH`, `~/.pub-cache/bin`, `~/.local/bin`, dan path server `ncladrserver` `/home/ncladr/fvm/bin/fvm`. Jika FVM berpindah lokasi, buat GitHub Actions **repository variable** `FVM_EXECUTABLE` berisi path absolut ke file `fvm`; variable pada environment `research` tidak tersedia bagi job `ci`. Versi Flutter **3.41.6** dipatok di `.fvmrc`. Pada push, workflow menjalankan `fvm use 3.41.6 --skip-pub-get` dan memakai SDK yang dipilih FVM untuk semua step Flutter. FVM menggunakan cache SDK yang sudah ada dan hanya mengunduh jika versi tersebut belum terpasang. Variable `FLUTTER_SDK_PATH` tidak diperlukan. Pull request tetap menyiapkan Flutter pada runner GitHub yang baru. Workflow juga menyiapkan Java 17 dan Node.js 22 serta mengunduh Gradle dan dependensi bila belum ada di cache.
@@ -16,7 +16,7 @@ Untuk distribusi, pasang Firebase CLI sekali pada self-hosted runner dengan `npm
 
 Siapkan distribusi satu kali:
 
-1. Buka Firebase Console, pilih project `research-liveness`, lalu buka **App Distribution** untuk aplikasi Android `id.nicolafsalv.liveness` dan klik **Get started**.
+1. Buka Firebase Console, pilih project `liveness`, lalu buka **App Distribution** untuk aplikasi Android `id.nicolafsalv.liveness` dan klik **Get started**.
 2. Buat grup tester di App Distribution dan tambahkan alamat email tester. Catat **alias** grup, misalnya `qa-team`.
 3. Di Google Cloud project yang sama, buat service account dengan role **Firebase App Distribution Admin** dan unduh JSON private key. Simpan seluruh isi JSON sebagai GitHub Actions **environment secret** bernama `FIREBASE_SERVICE_ACCOUNT` pada environment `research`. Jangan commit private key ke repo.
 4. Buat GitHub Actions **environment variable** `FIREBASE_TESTER_GROUPS` pada environment `research` berisi alias grup tester. Beberapa alias dapat dipisahkan koma.
@@ -63,7 +63,7 @@ Git dependency:
 dependencies:
   liveness_flutter:
     git:
-      url: https://github.com/nicolafeby/research-liveness.git
+      url: https://github.com/nicolafeby/liveness.git
       ref: liveness-v1.0.2
       path: packages/liveness_flutter
 ```

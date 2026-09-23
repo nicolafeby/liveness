@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   ci:
-    runs-on: [self-hosted, Linux, X64, research-liveness]
+    runs-on: [self-hosted, Linux, X64, liveness]
     defaults:
       run:
         working-directory: mobile
@@ -63,7 +63,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
     needs: ci
-    runs-on: [self-hosted, Linux, X64, research-liveness]
+    runs-on: [self-hosted, Linux, X64, liveness]
     environment: research
     defaults:
       run:
