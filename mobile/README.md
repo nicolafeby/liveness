@@ -57,8 +57,8 @@ Git dependency:
 dependencies:
   liveness_flutter:
     git:
-      url: https://github.com/USERNAME/research-liveness.git
-      ref: liveness-v1.0.1
+      url: https://github.com/nicolafeby/research-liveness.git
+      ref: liveness-v1.0.2
       path: packages/liveness_flutter
 ```
 
