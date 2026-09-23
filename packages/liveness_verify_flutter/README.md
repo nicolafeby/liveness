@@ -42,7 +42,7 @@ on-device liveness solution.
 
 The reference implementation uses Flutter Camera, BLoC, Dio, FastAPI, OpenCV,
 YuNet, and MiniFASNetV2. See the
-[project repository](https://github.com/nicolafeby/research-liveness) for the
+[project repository](https://github.com/nicolafeby/liveness) for the
 complete architecture and backend source.
 
 ## Requirements
@@ -74,7 +74,7 @@ repository:
 dependencies:
   liveness_verify_flutter:
     git:
-      url: https://github.com/nicolafeby/research-liveness.git
+      url: https://github.com/nicolafeby/liveness.git
       ref: main
       path: packages/liveness_verify_flutter
 ```
@@ -189,8 +189,8 @@ The open-source reference backend includes the FastAPI application, challenge
 state machine, OpenCV integration, ONNX models, and Dockerfile:
 
 ```sh
-git clone https://github.com/nicolafeby/research-liveness.git
-cd research-liveness
+git clone https://github.com/nicolafeby/liveness.git
+cd liveness
 docker build -t liveness-backend backend
 docker run -d \
   --name liveness-backend \
@@ -201,7 +201,7 @@ curl http://127.0.0.1:18080/health
 ```
 
 See the
-[backend documentation](https://github.com/nicolafeby/research-liveness/blob/main/backend/README.md)
+[backend documentation](https://github.com/nicolafeby/liveness/blob/main/backend/README.md)
 for its API contract, model details, reverse-proxy configuration, and deployment
 instructions.
 
@@ -255,6 +255,6 @@ dart run build_runner build --delete-conflicting-outputs
 ## License
 
 The package source is available under the
-[MIT License](https://github.com/nicolafeby/research-liveness/blob/main/LICENSE).
+[MIT License](https://github.com/nicolafeby/liveness/blob/main/LICENSE).
 The reference backend includes third-party models with their own provenance and
 terms. Review those terms before redistribution or commercial use.

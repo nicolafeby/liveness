@@ -74,8 +74,8 @@ The server must expose both HTTP and WebSocket traffic. In production, place the
 To deploy the backend manually with Docker:
 
 ```sh
-git clone https://github.com/nicolafeby/research-liveness.git
-cd research-liveness
+git clone https://github.com/nicolafeby/liveness.git
+cd liveness
 docker build -t liveness-backend backend
 docker run -d \
   --name liveness-backend \
