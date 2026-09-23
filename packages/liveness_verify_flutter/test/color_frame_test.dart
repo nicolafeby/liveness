@@ -2,7 +2,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:liveness_flutter/src/core/color_frame.dart';
+import 'package:liveness_verify_flutter/src/core/color_frame.dart';
 import 'package:image/image.dart' as img;
 
 void main() {

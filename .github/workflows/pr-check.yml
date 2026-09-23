@@ -41,15 +41,15 @@ jobs:
           cache: true
 
       - name: Install liveness package dependencies
-        working-directory: packages/liveness_flutter
+        working-directory: packages/liveness_verify_flutter
         run: flutter pub get
 
       - name: Analyze liveness package
-        working-directory: packages/liveness_flutter
+        working-directory: packages/liveness_verify_flutter
         run: flutter analyze
 
       - name: Test liveness package
-        working-directory: packages/liveness_flutter
+        working-directory: packages/liveness_verify_flutter
         run: flutter test
 
       - name: Install mobile dependencies

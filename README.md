@@ -195,10 +195,10 @@ cd mobile
 fvm flutter analyze
 ```
 
-After changing annotated models under `packages/liveness_flutter/lib/src/liveness/models/`, regenerate serializers:
+After changing annotated models under `packages/liveness_verify_flutter/lib/src/liveness/models/`, regenerate serializers:
 
 ```sh
-cd packages/liveness_flutter
+cd packages/liveness_verify_flutter
 fvm flutter pub run build_runner build --delete-conflicting-outputs
 ```
 

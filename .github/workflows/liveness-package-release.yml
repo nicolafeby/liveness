@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: packages/liveness_flutter
+        working-directory: packages/liveness_verify_flutter
 
     steps:
       - name: Resolve release tag

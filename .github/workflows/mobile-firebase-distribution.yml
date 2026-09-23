@@ -8,7 +8,7 @@ on:
       - main
     paths:
       - 'mobile/**'
-      - 'packages/liveness_flutter/**'
+      - 'packages/liveness_verify_flutter/**'
 permissions:
   contents: read
 

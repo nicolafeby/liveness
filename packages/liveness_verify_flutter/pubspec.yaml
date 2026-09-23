@@ -1,6 +1,8 @@
-name: liveness_flutter
-description: Reusable Flutter client for the liveness service.
+name: liveness_verify_flutter
+description: Guided Flutter face-liveness verification with active challenges and server-side anti-spoofing for lightweight on-device operation.
 version: 0.1.0
+repository: https://github.com/nicolafeby/research-liveness/tree/main/packages/liveness_verify_flutter
+issue_tracker: https://github.com/nicolafeby/research-liveness/issues
 
 environment:
   sdk: ^3.11.4
