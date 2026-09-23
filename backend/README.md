@@ -14,6 +14,9 @@ Model `face_detection_yunet_2023mar.onnx` berasal dari [OpenCV Zoo](https://gith
 
 ## Menjalankan
 
+Pull request yang mengubah `backend/` menjalankan seluruh unit test dengan Python 3.12
+melalui workflow `.github/workflows/backend-pr-check.yml`.
+
 Gunakan interpreter Python yang didukung paket dalam `requirements.txt` (teruji dengan Python 3.14 di macOS ARM).
 
 ```sh

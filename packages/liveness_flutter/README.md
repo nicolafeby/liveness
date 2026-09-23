@@ -27,3 +27,9 @@ dependencies:
       ref: liveness-v1.0.1
       path: packages/liveness_flutter
 ```
+
+## Pengujian
+
+Pull request yang mengubah package menjalankan `flutter analyze` dan `flutter test`
+secara otomatis. Pemeriksaan yang sama dapat dijalankan secara lokal dari direktori
+package.

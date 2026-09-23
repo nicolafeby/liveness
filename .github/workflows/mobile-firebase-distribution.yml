@@ -9,18 +9,12 @@ on:
     paths:
       - 'mobile/**'
       - 'packages/liveness_flutter/**'
-  pull_request:
-    paths:
-      - 'mobile/**'
-      - 'packages/liveness_flutter/**'
-
 permissions:
   contents: read
 
 jobs:
   ci:
-    # Pull requests use an isolated runner; pushes and manual runs use the project's Linux runner.
-    runs-on: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest"]' || '["self-hosted","Linux","X64","research-liveness"]') }}
+    runs-on: [self-hosted, Linux, X64, research-liveness]
     defaults:
       run:
         working-directory: mobile
@@ -33,7 +27,6 @@ jobs:
           java-version: '17'
 
       - name: Select Flutter with FVM on self-hosted runner
-        if: github.event_name != 'pull_request'
         env:
           FVM_EXECUTABLE: ${{ vars.FVM_EXECUTABLE }}
         run: |
@@ -51,14 +44,6 @@ jobs:
           "$fvm_cmd" use 3.41.6 --skip-pub-get
           test -x .fvm/flutter_sdk/bin/flutter || { echo 'FVM did not create .fvm/flutter_sdk/bin/flutter'; exit 1; }
           echo "$PWD/.fvm/flutter_sdk/bin" >> "$GITHUB_PATH"
-
-      - name: Set up Flutter for pull requests
-        if: github.event_name == 'pull_request'
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.41.6'
-          channel: stable
-          cache: false
 
       - name: Verify Flutter version
         run: |
