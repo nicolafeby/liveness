@@ -50,18 +50,16 @@ Untuk APK yang didistribusikan lewat GitHub Actions, atur variable `LIVENESS_API
 
 Entry point publik package adalah
 `package:liveness_flutter/liveness_flutter.dart`. Source package berada di
-`packages/liveness_flutter`. Arsip package
-dibuat oleh workflow **Release Flutter liveness package** ketika tag
-`liveness-v*` dibuat. Workflow mengambil `LIVENESS_API_URL` dari GitHub
-environment `research` dan menanamkannya hanya ke arsip GitHub Release; URL tidak
-ditulis ke commit repository.
-
-Ekstrak arsip release, lalu tambahkan path package ke aplikasi:
+`packages/liveness_flutter`. Konsumen dapat memasang package langsung sebagai
+Git dependency:
 
 ```yaml
 dependencies:
   liveness_flutter:
-    path: packages/liveness
+    git:
+      url: https://github.com/USERNAME/research-liveness.git
+      ref: liveness-v1.0.1
+      path: packages/liveness_flutter
 ```
 
 Pemakaian paling sederhana tidak memerlukan URL:

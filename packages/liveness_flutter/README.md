@@ -1,8 +1,7 @@
 # Liveness Flutter
 
-Flutter client untuk layanan liveness pada repository ini. Package release
-dibuat oleh GitHub Actions dan sudah berisi endpoint production, sehingga
-aplikasi konsumen tidak perlu mengatur URL server.
+Flutter client untuk layanan liveness pada repository ini. Aplikasi konsumen
+dapat langsung menggunakan package tanpa mengatur URL server.
 
 ```dart
 import 'package:liveness_flutter/liveness_flutter.dart';
@@ -17,3 +16,14 @@ LivenessScreen(
 Android host wajib memiliki permission `CAMERA` dan `INTERNET`. iOS host wajib
 memiliki `NSCameraUsageDescription`. `baseUrl` dapat diberikan untuk development
 atau pengujian.
+
+Package dapat dipasang langsung dari GitHub:
+
+```yaml
+dependencies:
+  liveness_flutter:
+    git:
+      url: https://github.com/nicolafeby/research-liveness.git
+      ref: liveness-v1.0.1
+      path: packages/liveness_flutter
+```

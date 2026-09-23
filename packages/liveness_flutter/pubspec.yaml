@@ -1,6 +1,6 @@
 name: liveness_flutter
 description: Reusable Flutter client for the research liveness service.
-version: 1.0.0
+version: 1.0.1
 publish_to: none
 
 environment:
