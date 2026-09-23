@@ -1,9 +1,6 @@
 # Liveness Detection
 
-An end-to-end prototype that verifies whether the face in front of a camera belongs to a live, active user rather than a static image. The project combines a Flutter application for capturing camera frames with a FastAPI/OpenCV API that processes the liveness challenge.
-
-> [!WARNING]
-> This project is still a research prototype. Detection thresholds have not been calibrated against representative populations, devices, and attack conditions. Do not use its results as the sole basis for authentication, KYC, or other high-risk decisions.
+An end-to-end system that verifies whether the face in front of a camera belongs to a live, active user rather than a static image. The project combines a Flutter application for capturing camera frames with a FastAPI/OpenCV API that processes the liveness challenge.
 
 ## Key Features
 
@@ -195,10 +192,10 @@ cd mobile
 fvm flutter analyze
 ```
 
-After changing annotated models under `packages/liveness_verify_flutter/lib/src/liveness/models/`, regenerate serializers:
+After changing annotated models under `packages/liveness_flutter/lib/src/liveness/models/`, regenerate serializers:
 
 ```sh
-cd packages/liveness_verify_flutter
+cd packages/liveness_flutter
 fvm flutter pub run build_runner build --delete-conflicting-outputs
 ```
 
