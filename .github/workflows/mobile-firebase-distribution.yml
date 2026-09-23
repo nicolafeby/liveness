@@ -144,8 +144,15 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install Firebase CLI
-        run: npm install --global firebase-tools@15.30.1
+      - name: Set up Firebase CLI
+        run: |
+          current_version="$(firebase --version 2>/dev/null || true)"
+          if [ "$current_version" = '15.30.1' ]; then
+            echo "Firebase CLI $current_version is already installed; skipping installation"
+          else
+            echo "Installing Firebase CLI 15.30.1 (current: ${current_version:-not installed})"
+            npm install --global firebase-tools@15.30.1
+          fi
 
       - name: Verify Firebase CLI
         run: |
