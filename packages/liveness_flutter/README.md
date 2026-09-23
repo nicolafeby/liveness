@@ -82,33 +82,6 @@ flutter build apk \
 An explicit `baseUrl` passed to `LivenessScreen` takes precedence over the
 build-time `LIVENESS_API_URL` value.
 
-## GitHub Actions Configuration
-
-This repository's mobile distribution workflow uses the GitHub environment
-named `research`. If you fork the project and want to use its GitHub Actions
-workflow, configure the following values:
-
-| Name | GitHub scope | Required | Purpose |
-| --- | --- | --- | --- |
-| `LIVENESS_API_URL` | `research` environment variable | Yes | Public base URL of the backend embedded in the release APK |
-| `FIREBASE_TESTER_GROUPS` | `research` environment variable | Yes | Firebase App Distribution group aliases, separated by commas |
-| `FIREBASE_SERVICE_ACCOUNT` | `research` environment secret | Yes | Complete JSON private key for a service account with the Firebase App Distribution Admin role |
-| `FVM_EXECUTABLE` | Repository variable | Only if FVM is not found automatically | Absolute path to the FVM executable on the self-hosted runner |
-
-Create the environment from **Repository Settings → Environments → New
-environment**, name it `research`, and add the first three values on its
-configuration page. Add `FVM_EXECUTABLE`, when required, under **Repository
-Settings → Secrets and variables → Actions → Variables**. It must be a repository
-variable because the workflow's `ci` job does not use the `research` environment.
-
-Keep `FIREBASE_SERVICE_ACCOUNT` as a secret. Do not store it as a variable or
-commit its JSON file to source control. The backend deployment workflow does not
-currently require a backend-specific secret or variable; it uses Docker installed
-on a self-hosted Linux X64 runner labeled `liveness`.
-
-For the complete runner and Firebase setup, see
-[`mobile/README.md`](https://github.com/nicolafeby/research-liveness/blob/main/mobile/README.md).
-
 ## Testing
 
 Pull requests that change the package automatically run `flutter analyze` and

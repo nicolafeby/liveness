@@ -217,22 +217,7 @@ curl http://127.0.0.1:18080/health
 
 Expose the backend through an HTTPS/WSS endpoint, then configure that base URL as `LIVENESS_API_URL` when building the mobile application. The URL must be reachable from the tester's device. See [backend/README.md](backend/README.md) for Docker, reverse-proxy, health-check, and GitHub Actions deployment details.
 
-A push to `main` that changes `backend/**` starts deployment on the self-hosted Linux X64 runner labeled `liveness`. The workflow uses the `research` GitHub environment, builds a container, publishes the backend on host port `18080`, performs a health check, and restores the previous container if the new deployment fails.
-
-### GitHub Actions Secrets and Variables
-
-Changes under `mobile/**` run Flutter tests. A push to `main` or a manual run then builds a release APK and distributes it through Firebase App Distribution. The required GitHub environment configuration is:
-
-| Name | GitHub scope | Required | Purpose |
-| --- | --- | --- | --- |
-| `LIVENESS_API_URL` | `research` environment variable | Yes | Public backend base URL embedded in the release APK, for example `https://liveness.example.com` |
-| `FIREBASE_TESTER_GROUPS` | `research` environment variable | Yes | One or more Firebase App Distribution group aliases, separated by commas |
-| `FIREBASE_SERVICE_ACCOUNT` | `research` environment secret | Yes | Complete JSON private key for a service account with the Firebase App Distribution Admin role |
-| `FVM_EXECUTABLE` | Repository variable | Only when FVM cannot be found automatically | Absolute path to the executable on the self-hosted runner, for example `/home/runner/fvm/bin/fvm` |
-
-Create the `research` environment under **Repository Settings → Environments → New environment**. Add its variables and secret from the environment's configuration page. Add `FVM_EXECUTABLE`, when needed, under **Repository Settings → Secrets and variables → Actions → Variables** because the `ci` job does not use the `research` environment.
-
-Do not add `FIREBASE_SERVICE_ACCOUNT` as a variable or commit it to the repository. Variables are suitable for non-sensitive configuration, while the service-account JSON must remain a secret. The backend deployment workflow currently needs no backend-specific secret or variable; it only references the `research` environment and relies on the self-hosted runner's local Docker access.
+A push to `main` that changes `backend/**` starts deployment on the self-hosted Linux X64 runner labeled `liveness`. The workflow builds a container, publishes the backend on host port `18080`, performs a health check, and restores the previous container if the new deployment fails.
 
 See [mobile/README.md](mobile/README.md) for runner and Firebase setup, and [backend/README.md](backend/README.md) for model, threshold, API, and backend deployment details.
 
