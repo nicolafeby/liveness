@@ -2,20 +2,12 @@ import 'package:camera/camera.dart';
 import 'package:flutter/services.dart';
 
 /// Packs a downsampled, upright Y plane for the WebSocket frame protocol.
-Uint8List encodeLumaFrame(
-  CameraImage frame,
-  int sensorOrientation,
-  DeviceOrientation deviceOrientation,
-) {
-  if (frame.format.group != ImageFormatGroup.yuv420 &&
-      frame.format.group != ImageFormatGroup.nv21) {
+Uint8List encodeLumaFrame(CameraImage frame, int sensorOrientation, DeviceOrientation deviceOrientation) {
+  if (frame.format.group != ImageFormatGroup.yuv420 && frame.format.group != ImageFormatGroup.nv21) {
     throw const FormatException('Format frame kamera tidak didukung');
   }
   final plane = frame.planes.first;
-  final rotation =
-      (sensorOrientation +
-          (deviceOrientation == DeviceOrientation.portraitDown ? 180 : 0)) %
-      360;
+  final rotation = (sensorOrientation + (deviceOrientation == DeviceOrientation.portraitDown ? 180 : 0)) % 360;
   return packLumaFrame(
     plane.bytes,
     width: frame.width,
@@ -34,28 +26,15 @@ Uint8List packLumaFrame(
   required int pixelStride,
   required int rotation,
 }) {
-  if (width <= 0 ||
-      height <= 0 ||
-      rowStride <= 0 ||
-      pixelStride <= 0 ||
-      !{0, 90, 180, 270}.contains(rotation)) {
-    throw const FormatException(
-      'Ukuran atau orientasi frame kamera tidak valid',
-    );
+  if (width <= 0 || height <= 0 || rowStride <= 0 || pixelStride <= 0 || !{0, 90, 180, 270}.contains(rotation)) {
+    throw const FormatException('Ukuran atau orientasi frame kamera tidak valid');
   }
   final step = ((width > height ? width : height) / 640).ceil();
   final sourceWidth = (width + step - 1) ~/ step;
   final sourceHeight = (height + step - 1) ~/ step;
-  final uprightWidth = rotation == 90 || rotation == 270
-      ? sourceHeight
-      : sourceWidth;
-  final uprightHeight = rotation == 90 || rotation == 270
-      ? sourceWidth
-      : sourceHeight;
-  if (uprightWidth < 100 ||
-      uprightHeight < 100 ||
-      uprightWidth > 65535 ||
-      uprightHeight > 65535) {
+  final uprightWidth = rotation == 90 || rotation == 270 ? sourceHeight : sourceWidth;
+  final uprightHeight = rotation == 90 || rotation == 270 ? sourceWidth : sourceHeight;
+  if (uprightWidth < 100 || uprightHeight < 100 || uprightWidth > 65535 || uprightHeight > 65535) {
     throw const FormatException('Resolusi frame kamera tidak didukung');
   }
   if ((height - 1) * rowStride + (width - 1) * pixelStride >= source.length) {
