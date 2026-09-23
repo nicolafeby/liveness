@@ -1,63 +1,45 @@
 # Liveness
 
-## Android CI dan Firebase App Distribution
+## Android CI and Firebase App Distribution
 
-Pull request yang mengubah aplikasi atau package liveness menjalankan `flutter analyze`
-dan `flutter test` melalui workflow
-[mobile-pr-check.yml](../.github/workflows/mobile-pr-check.yml) pada runner GitHub.
-Workflow [mobile-firebase-distribution.yml](../.github/workflows/mobile-firebase-distribution.yml)
-tetap menangani push ke `main` dan eksekusi manual pada self-hosted runner Linux X64
-berlabel `liveness` (`ncladrserver`), termasuk build APK dan distribusi melalui
-Firebase App Distribution memakai environment GitHub `research`.
+Pull requests that change the application or liveness package run `flutter analyze` and `flutter test` through [mobile-pr-check.yml](../.github/workflows/mobile-pr-check.yml) on a GitHub-hosted runner. [mobile-firebase-distribution.yml](../.github/workflows/mobile-firebase-distribution.yml) handles pushes to `main` and manual runs on the self-hosted Linux X64 runner labeled `liveness` (`ncladrserver`), including APK builds and distribution through Firebase App Distribution using the `research` GitHub environment.
 
-Runner harus tetap online dan memiliki Android SDK (termasuk build tools dan lisensi yang diperlukan), `git`, Python 3, serta FVM. Workflow mencari FVM pada `PATH`, `~/.pub-cache/bin`, `~/.local/bin`, dan path server `ncladrserver` `/home/ncladr/fvm/bin/fvm`. Jika FVM berpindah lokasi, buat GitHub Actions **repository variable** `FVM_EXECUTABLE` berisi path absolut ke file `fvm`; variable pada environment `research` tidak tersedia bagi job `ci`. Versi Flutter **3.41.6** dipatok di `.fvmrc`. Pada push, workflow menjalankan `fvm use 3.41.6 --skip-pub-get` dan memakai SDK yang dipilih FVM untuk semua step Flutter. FVM menggunakan cache SDK yang sudah ada dan hanya mengunduh jika versi tersebut belum terpasang. Variable `FLUTTER_SDK_PATH` tidak diperlukan. Pull request tetap menyiapkan Flutter pada runner GitHub yang baru. Workflow juga menyiapkan Java 17 dan Node.js 22 serta mengunduh Gradle dan dependensi bila belum ada di cache.
+The runner must remain online and have the Android SDK (including the required build tools and licenses), `git`, Python 3, and FVM. The workflow searches for FVM on `PATH`, under `~/.pub-cache/bin` and `~/.local/bin`, and at the `ncladrserver` path `/home/ncladr/fvm/bin/fvm`. If FVM moves, create a GitHub Actions **repository variable** named `FVM_EXECUTABLE` containing the absolute path to the `fvm` executable; variables in the `research` environment are unavailable to the `ci` job. Flutter **3.41.6** is pinned in `.fvmrc`. On push, the workflow runs `fvm use 3.41.6 --skip-pub-get` and uses the SDK selected by FVM for every Flutter step. FVM reuses its existing SDK cache and downloads the version only when it is missing. `FLUTTER_SDK_PATH` is not required. Pull requests continue to set up Flutter on a fresh GitHub-hosted runner. The workflow also configures Java 17 and Node.js 22, and downloads Gradle and dependencies when they are not cached.
 
-Untuk distribusi, pasang Firebase CLI sekali pada self-hosted runner dengan `npm install --global firebase-tools@15.30.1` dan pastikan perintah `firebase` tersedia pada `PATH` akun yang menjalankan GitHub Actions runner. Job CD memeriksa `firebase --version` dan berhenti jika versinya bukan `15.30.1`; workflow tidak memasang ulang CLI pada setiap run. Jika versi CLI diperbarui, ubah versi pada runner dan langkah pemeriksaan workflow secara bersamaan.
+For distribution, install Firebase CLI once on the self-hosted runner with `npm install --global firebase-tools@15.30.1`, and ensure that `firebase` is on the `PATH` of the account running the GitHub Actions runner. The CD job checks `firebase --version` and stops unless it is `15.30.1`; the workflow does not reinstall the CLI on every run. When upgrading the CLI, update both the runner version and the workflow's version check.
 
-Siapkan distribusi satu kali:
+One-time distribution setup:
 
-1. Buka Firebase Console, pilih project `liveness`, lalu buka **App Distribution** untuk aplikasi Android `id.nicolafsalv.liveness` dan klik **Get started**.
-2. Buat grup tester di App Distribution dan tambahkan alamat email tester. Catat **alias** grup, misalnya `qa-team`.
-3. Di Google Cloud project yang sama, buat service account dengan role **Firebase App Distribution Admin** dan unduh JSON private key. Simpan seluruh isi JSON sebagai GitHub Actions **environment secret** bernama `FIREBASE_SERVICE_ACCOUNT` pada environment `research`. Jangan commit private key ke repo.
-4. Buat GitHub Actions **environment variable** `FIREBASE_TESTER_GROUPS` pada environment `research` berisi alias grup tester. Beberapa alias dapat dipisahkan koma.
+1. Open Firebase Console, select the `liveness` project, open **App Distribution** for the Android application `id.nicolafsalv.liveness`, and click **Get started**.
+2. Create a tester group in App Distribution and add tester email addresses. Record the group **alias**, such as `qa-team`.
+3. In the same Google Cloud project, create a service account with the **Firebase App Distribution Admin** role and download its private-key JSON. Store the entire JSON value as a GitHub Actions **environment secret** named `FIREBASE_SERVICE_ACCOUNT` in the `research` environment. Never commit the private key.
+4. Create a GitHub Actions **environment variable** named `FIREBASE_TESTER_GROUPS` in the `research` environment and set it to the tester-group alias. Separate multiple aliases with commas.
 
-Workflow mengambil Firebase App ID dari `android/app/google-services.json`. APK yang dikirim adalah build **release** untuk pengujian. Build number Android (`versionCode`) otomatis memakai nomor run GitHub Actions, sedangkan versi aplikasi (`versionName`) tetap mengikuti `pubspec.yaml`. Release notes di Firebase berisi pesan dari lima commit terbaru. Pastikan konfigurasi signing Android sesuai kebutuhan sebelum mendistribusikannya lebih luas.
-
-A new Flutter project.
+The workflow reads the Firebase App ID from `android/app/google-services.json`. The distributed APK is a **release** build intended for testing. The Android build number (`versionCode`) automatically uses the GitHub Actions run number, while the application version (`versionName`) continues to follow `pubspec.yaml`. Firebase release notes contain messages from the five most recent commits. Verify the Android signing configuration before distributing the application more widely.
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
+This is a Flutter application. These resources are useful if you are new to Flutter:
 
 - [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
 - [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
 - [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+The [Flutter documentation](https://docs.flutter.dev/) provides tutorials, samples, mobile-development guidance, and a complete API reference.
 
-## Backend liveness
+## Liveness Backend
 
-Model respons API memakai `json_serializable`. Setelah mengubah field atau anotasi di
-`packages/liveness_flutter/lib/src/liveness/models/`, jalankan
-`flutter pub run build_runner build --delete-conflicting-outputs` dari direktori
-`packages/liveness_flutter/` dan commit file `.g.dart` yang dihasilkan.
+API response models use `json_serializable`. After changing fields or annotations under `packages/liveness_flutter/lib/src/liveness/models/`, run `flutter pub run build_runner build --delete-conflicting-outputs` from `packages/liveness_flutter/` and commit the generated `.g.dart` files.
 
-Jalankan `./script/run-backend.sh` dari root proyek, lalu jalankan aplikasi pada perangkat Android yang terhubung melalui USB. Skrip mengaktifkan `adb reverse tcp:8000 tcp:8000`; aplikasi memakai `http://127.0.0.1:8000` secara default. Aplikasi membuat sesi, membuka WebSocket lalu mengirim foto JPEG kamera depan satu per satu setelah menerima respons server, dan menampilkan instruksi serta hasil dari backend. Ketuk **Coba lagi** untuk membuat sesi baru setelah gagal.
+Run `./script/run-backend.sh` from the project root, then start the application on an Android device connected over USB. The script enables `adb reverse tcp:8000 tcp:8000`; the application uses `http://127.0.0.1:8000` by default. It creates a session, opens a WebSocket, sends front-camera frames one at a time after receiving each server response, and displays instructions and results from the backend. Tap **Coba lagi** ("Try again") to create a new session after a failure.
 
-Untuk perangkat lain, atur URL backend saat menjalankan Flutter, misalnya `flutter run --dart-define=LIVENESS_API_URL=http://192.168.1.10:8000`. Backend harus dapat diakses dari perangkat; untuk akses LAN jalankan uvicorn dengan `--host 0.0.0.0`. Gunakan HTTPS dan konfigurasi keamanan platform yang sesuai di luar lingkungan pengembangan lokal.
+For another device, configure the backend URL when starting Flutter, for example: `flutter run --dart-define=LIVENESS_API_URL=http://192.168.1.10:8000`. The backend must be reachable from the device; for LAN access, start Uvicorn with `--host 0.0.0.0`. Use HTTPS and appropriate platform security settings outside local development.
 
-Untuk APK yang didistribusikan lewat GitHub Actions, atur variable `LIVENESS_API_URL` pada GitHub environment `research` ke URL backend yang dapat diakses perangkat penguji. Workflow meneruskannya ke `flutter build` melalui `--dart-define`. Build rilis gagal jika variable tersebut belum diatur.
+For APKs distributed by GitHub Actions, set the `LIVENESS_API_URL` variable in the `research` GitHub environment to a backend URL reachable by tester devices. The workflow passes it to `flutter build` through `--dart-define`. The release build fails when the variable is missing.
 
-## Menggunakan sebagai package
+## Using the Flutter Package
 
-Entry point publik package adalah
-`package:liveness_flutter/liveness_flutter.dart`. Source package berada di
-`packages/liveness_flutter`. Konsumen dapat memasang package langsung sebagai
-Git dependency:
+The package's public entry point is `package:liveness_flutter/liveness_flutter.dart`, and its source is under `packages/liveness_flutter`. Consumers can install it directly as a Git dependency:
 
 ```yaml
 dependencies:
@@ -68,18 +50,16 @@ dependencies:
       path: packages/liveness_flutter
 ```
 
-Pemakaian paling sederhana tidak memerlukan URL:
+The simplest usage does not require a URL:
 
 ```dart
 import 'package:liveness_flutter/liveness_flutter.dart';
 
 LivenessScreen(
   onSuccess: (image) {
-    // Gunakan foto hasil liveness.
+    // Use the image produced by the liveness check.
   },
 )
 ```
 
-Android host wajib memiliki permission `CAMERA` dan `INTERNET`; iOS host wajib
-memiliki `NSCameraUsageDescription`. Parameter `baseUrl` tetap tersedia sebagai
-override untuk development dan pengujian.
+Android hosts must declare the `CAMERA` and `INTERNET` permissions; iOS hosts must provide `NSCameraUsageDescription`. The `baseUrl` parameter remains available as an override for development and testing.
