@@ -2,7 +2,13 @@
 
 ## Android CI dan Firebase App Distribution
 
-Workflow [mobile-firebase-distribution.yml](../.github/workflows/mobile-firebase-distribution.yml) berjalan saat file di `mobile/` berubah. Pull request menjalankan CI di runner GitHub agar kode PR tidak berjalan pada server sendiri. Semua push menjalankan `flutter analyze`, `flutter test`, dan build APK release pada self-hosted runner Linux X64 berlabel `research-liveness` (`ncladrserver`). Push ke `main` menjalankan job distribusi terpisah yang mengunduh APK hasil build dan mengunggahnya ke Firebase App Distribution memakai environment GitHub `research`.
+Pull request yang mengubah aplikasi atau package liveness menjalankan `flutter analyze`
+dan `flutter test` melalui workflow
+[mobile-pr-check.yml](../.github/workflows/mobile-pr-check.yml) pada runner GitHub.
+Workflow [mobile-firebase-distribution.yml](../.github/workflows/mobile-firebase-distribution.yml)
+tetap menangani push ke `main` dan eksekusi manual pada self-hosted runner Linux X64
+berlabel `research-liveness` (`ncladrserver`), termasuk build APK dan distribusi melalui
+Firebase App Distribution memakai environment GitHub `research`.
 
 Runner harus tetap online dan memiliki Android SDK (termasuk build tools dan lisensi yang diperlukan), `git`, Python 3, serta FVM. Workflow mencari FVM pada `PATH`, `~/.pub-cache/bin`, `~/.local/bin`, dan path server `ncladrserver` `/home/ncladr/fvm/bin/fvm`. Jika FVM berpindah lokasi, buat GitHub Actions **repository variable** `FVM_EXECUTABLE` berisi path absolut ke file `fvm`; variable pada environment `research` tidak tersedia bagi job `ci`. Versi Flutter **3.41.6** dipatok di `.fvmrc`. Pada push, workflow menjalankan `fvm use 3.41.6 --skip-pub-get` dan memakai SDK yang dipilih FVM untuk semua step Flutter. FVM menggunakan cache SDK yang sudah ada dan hanya mengunduh jika versi tersebut belum terpasang. Variable `FLUTTER_SDK_PATH` tidak diperlukan. Pull request tetap menyiapkan Flutter pada runner GitHub yang baru. Workflow juga menyiapkan Java 17 dan Node.js 22 serta mengunduh Gradle dan dependensi bila belum ada di cache.
 
