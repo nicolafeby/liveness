@@ -1,6 +1,6 @@
 name: liveness_verify_flutter
 description: Guided Flutter face-liveness verification with active challenges and server-side anti-spoofing for lightweight on-device operation.
-version: 0.1.0
+version: 0.1.1
 repository: https://github.com/nicolafeby/research-liveness/tree/main/packages/liveness_verify_flutter
 issue_tracker: https://github.com/nicolafeby/research-liveness/issues
 
