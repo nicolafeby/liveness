@@ -172,6 +172,9 @@ Status tantangan adalah `align`, `open`, `blink`, `reopen`, `move`, `passed`, at
 
 ## Pengujian
 
+Setiap pull request wajib melewati pemeriksaan package liveness, aplikasi mobile,
+dan backend sebelum dapat digabungkan ke branch utama.
+
 Backend memakai `unittest`:
 
 ```sh
