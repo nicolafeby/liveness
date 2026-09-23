@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:liveness/core/alice_inspector.dart';
-import 'package:liveness/liveness/screen/liveness_screen.dart';
+import 'package:liveness_flutter/liveness_flutter.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

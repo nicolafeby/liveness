@@ -6,9 +6,11 @@ on:
   push:
     paths:
       - 'mobile/**'
+      - 'packages/liveness_flutter/**'
   pull_request:
     paths:
       - 'mobile/**'
+      - 'packages/liveness_flutter/**'
 
 permissions:
   contents: read

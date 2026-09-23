@@ -30,7 +30,8 @@ class LivenessSession {
     framesProcessed: framesProcessed,
   );
 
-  factory LivenessSession.fromJson(Map<String, dynamic> json) => _$LivenessSessionFromJson(json);
+  factory LivenessSession.fromJson(Map<String, dynamic> json) =>
+      _$LivenessSessionFromJson(json);
 
   Map<String, dynamic> toJson() => _$LivenessSessionToJson(this);
 }

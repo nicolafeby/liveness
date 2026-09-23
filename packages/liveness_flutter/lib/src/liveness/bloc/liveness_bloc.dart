@@ -1,14 +1,16 @@
 import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:liveness/liveness/bloc/liveness_event.dart';
-import 'package:liveness/liveness/bloc/liveness_state.dart';
-import 'package:liveness/core/liveness_api.dart';
-import 'package:liveness/core/color_frame.dart';
-import 'package:liveness/liveness/models/liveness_status.dart';
+import 'package:liveness_flutter/src/liveness/bloc/liveness_event.dart';
+import 'package:liveness_flutter/src/liveness/bloc/liveness_state.dart';
+import 'package:liveness_flutter/src/core/liveness_api.dart';
+import 'package:liveness_flutter/src/core/color_frame.dart';
+import 'package:liveness_flutter/src/liveness/models/liveness_status.dart';
 
 class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
-  LivenessBloc({LivenessApi? api}) : _api = api ?? LivenessApi(), super(const LivenessState()) {
+  LivenessBloc({LivenessApi? api})
+    : _api = api ?? LivenessApi(),
+      super(const LivenessState()) {
     on<CameraStarted>((event, emit) => _start(emit));
     on<CameraRetried>((event, emit) => _start(emit));
     on<CameraPaused>((event, emit) async {
@@ -53,7 +55,9 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
     try {
       final cameras = await availableCameras();
       if (isClosed || emit.isDone || generation != _generation) return;
-      final front = cameras.where((camera) => camera.lensDirection == CameraLensDirection.front);
+      final front = cameras.where(
+        (camera) => camera.lensDirection == CameraLensDirection.front,
+      );
       if (front.isEmpty) {
         emit(const LivenessState(error: 'Kamera depan tidak tersedia'));
         return;
@@ -81,7 +85,13 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
         return;
       }
       _stream = stream;
-      emit(LivenessState(camera: controller, instruction: session.result.instruction, status: session.result.status));
+      emit(
+        LivenessState(
+          camera: controller,
+          instruction: session.result.instruction,
+          status: session.result.status,
+        ),
+      );
       await _startFrameStream(controller, stream, generation);
     } catch (error) {
       if (_stream != null && generation == _generation) {
@@ -92,28 +102,44 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
       if (!isClosed && !emit.isDone && generation == _generation) {
         emit(
           LivenessState(
-            error: error is LivenessApiException ? error.message : 'Kamera atau server tidak dapat dihubungi',
+            error: error is LivenessApiException
+                ? error.message
+                : 'Kamera atau server tidak dapat dihubungi',
           ),
         );
       }
     }
   }
 
-  Future<void> _startFrameStream(CameraController camera, LivenessStream stream, int generation) async {
+  Future<void> _startFrameStream(
+    CameraController camera,
+    LivenessStream stream,
+    int generation,
+  ) async {
     final clock = Stopwatch()..start();
     var lastFrameAt = -350;
     var sending = false;
     var status = LivenessStatus.align;
     await camera.startImageStream((image) {
-      if (sending || isClosed || generation != _generation || !identical(_stream, stream)) return;
-      final blinkInProgress = status == LivenessStatus.blink || status == LivenessStatus.reopen;
+      if (sending ||
+          isClosed ||
+          generation != _generation ||
+          !identical(_stream, stream)) {
+        return;
+      }
+      final blinkInProgress =
+          status == LivenessStatus.blink || status == LivenessStatus.reopen;
       final interval = blinkInProgress ? 100 : 300;
       if (clock.elapsedMilliseconds - lastFrameAt < interval) return;
       sending = true;
       lastFrameAt = clock.elapsedMilliseconds;
       unawaited(() async {
         try {
-          final payload = encodeColorFrame(image, camera.description.sensorOrientation, camera.value.deviceOrientation);
+          final payload = encodeColorFrame(
+            image,
+            camera.description.sensorOrientation,
+            camera.value.deviceOrientation,
+          );
           final result = await stream.submitFrame(payload);
           if (isClosed || generation != _generation) return;
           status = result.status;
@@ -121,7 +147,9 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
             FrameResultReceived(
               generation,
               result,
-              resultImage: result.status == LivenessStatus.passed ? encodeResultImage(payload) : null,
+              resultImage: result.status == LivenessStatus.passed
+                  ? encodeResultImage(payload)
+                  : null,
             ),
           );
           if (result.status.isFinished) {
@@ -136,7 +164,9 @@ class LivenessBloc extends Bloc<LivenessEvent, LivenessState> {
             add(
               SessionFailed(
                 generation,
-                error is LivenessApiException ? error.message : 'Gagal mengirim frame ke server',
+                error is LivenessApiException
+                    ? error.message
+                    : 'Gagal mengirim frame ke server',
               ),
             );
           }

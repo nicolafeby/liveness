@@ -36,11 +36,46 @@ samples, guidance on mobile development, and a full API reference.
 ## Backend liveness
 
 Model respons API memakai `json_serializable`. Setelah mengubah field atau anotasi di
-`lib/liveness/models/`, jalankan `flutter pub run build_runner build` dari direktori
-`mobile/` dan commit file `.g.dart` yang dihasilkan.
+`packages/liveness_flutter/lib/src/liveness/models/`, jalankan
+`flutter pub run build_runner build --delete-conflicting-outputs` dari direktori
+`packages/liveness_flutter/` dan commit file `.g.dart` yang dihasilkan.
 
 Jalankan `./script/run-backend.sh` dari root proyek, lalu jalankan aplikasi pada perangkat Android yang terhubung melalui USB. Skrip mengaktifkan `adb reverse tcp:8000 tcp:8000`; aplikasi memakai `http://127.0.0.1:8000` secara default. Aplikasi membuat sesi, membuka WebSocket lalu mengirim foto JPEG kamera depan satu per satu setelah menerima respons server, dan menampilkan instruksi serta hasil dari backend. Ketuk **Coba lagi** untuk membuat sesi baru setelah gagal.
 
 Untuk perangkat lain, atur URL backend saat menjalankan Flutter, misalnya `flutter run --dart-define=LIVENESS_API_URL=http://192.168.1.10:8000`. Backend harus dapat diakses dari perangkat; untuk akses LAN jalankan uvicorn dengan `--host 0.0.0.0`. Gunakan HTTPS dan konfigurasi keamanan platform yang sesuai di luar lingkungan pengembangan lokal.
 
 Untuk APK yang didistribusikan lewat GitHub Actions, atur variable `LIVENESS_API_URL` pada GitHub environment `research` ke URL backend yang dapat diakses perangkat penguji. Workflow meneruskannya ke `flutter build` melalui `--dart-define`. Build rilis gagal jika variable tersebut belum diatur.
+
+## Menggunakan sebagai package
+
+Entry point publik package adalah
+`package:liveness_flutter/liveness_flutter.dart`. Source package berada di
+`packages/liveness_flutter`. Arsip package
+dibuat oleh workflow **Release Flutter liveness package** ketika tag
+`liveness-v*` dibuat. Workflow mengambil `LIVENESS_API_URL` dari GitHub
+environment `research` dan menanamkannya hanya ke arsip GitHub Release; URL tidak
+ditulis ke commit repository.
+
+Ekstrak arsip release, lalu tambahkan path package ke aplikasi:
+
+```yaml
+dependencies:
+  liveness_flutter:
+    path: packages/liveness
+```
+
+Pemakaian paling sederhana tidak memerlukan URL:
+
+```dart
+import 'package:liveness_flutter/liveness_flutter.dart';
+
+LivenessScreen(
+  onSuccess: (image) {
+    // Gunakan foto hasil liveness.
+  },
+)
+```
+
+Android host wajib memiliki permission `CAMERA` dan `INTERNET`; iOS host wajib
+memiliki `NSCameraUsageDescription`. Parameter `baseUrl` tetap tersedia sebagai
+override untuk development dan pengujian.

@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:liveness/core/luma_frame.dart';
+import 'package:liveness_flutter/src/core/luma_frame.dart';
 
 void main() {
   test('packs row-strided luma and rotates it upright', () {

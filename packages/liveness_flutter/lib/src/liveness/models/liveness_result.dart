@@ -18,7 +18,8 @@ class LivenessResult {
   final bool passed;
   final int framesProcessed;
 
-  factory LivenessResult.fromJson(Map<String, dynamic> json) => _$LivenessResultFromJson(json);
+  factory LivenessResult.fromJson(Map<String, dynamic> json) =>
+      _$LivenessResultFromJson(json);
 
   Map<String, dynamic> toJson() => _$LivenessResultToJson(this);
 }

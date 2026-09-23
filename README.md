@@ -193,10 +193,10 @@ cd mobile
 fvm flutter analyze
 ```
 
-Setelah mengubah model beranotasi di `mobile/lib/liveness/models/`, regenerasi serializer:
+Setelah mengubah model beranotasi di `packages/liveness_flutter/lib/src/liveness/models/`, regenerasi serializer:
 
 ```sh
-cd mobile
+cd packages/liveness_flutter
 fvm flutter pub run build_runner build --delete-conflicting-outputs
 ```
 

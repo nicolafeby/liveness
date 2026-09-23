@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:liveness/liveness/models/liveness_result.dart';
+import 'package:liveness_flutter/src/liveness/models/liveness_result.dart';
 
 sealed class LivenessEvent {}
 

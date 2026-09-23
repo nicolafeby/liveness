@@ -4,13 +4,25 @@ import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 
 /// Packs an upright, downsampled BGR frame for the backend's LVC1 protocol.
-Uint8List encodeColorFrame(CameraImage frame, int sensorOrientation, DeviceOrientation deviceOrientation) {
-  if (frame.format.group != ImageFormatGroup.yuv420 && frame.format.group != ImageFormatGroup.nv21) {
+Uint8List encodeColorFrame(
+  CameraImage frame,
+  int sensorOrientation,
+  DeviceOrientation deviceOrientation,
+) {
+  if (frame.format.group != ImageFormatGroup.yuv420 &&
+      frame.format.group != ImageFormatGroup.nv21) {
     throw const FormatException('Format frame kamera tidak didukung');
   }
-  final rotation = (sensorOrientation + (deviceOrientation == DeviceOrientation.portraitDown ? 180 : 0)) % 360;
-  if (!{0, 90, 180, 270}.contains(rotation) || frame.width < 100 || frame.height < 100) {
-    throw const FormatException('Ukuran atau orientasi frame kamera tidak valid');
+  final rotation =
+      (sensorOrientation +
+          (deviceOrientation == DeviceOrientation.portraitDown ? 180 : 0)) %
+      360;
+  if (!{0, 90, 180, 270}.contains(rotation) ||
+      frame.width < 100 ||
+      frame.height < 100) {
+    throw const FormatException(
+      'Ukuran atau orientasi frame kamera tidak valid',
+    );
   }
   final interleaved = frame.planes.length == 2;
   final nv21 = frame.format.group == ImageFormatGroup.nv21;
@@ -41,12 +53,17 @@ Uint8List encodeColorFrame(CameraImage frame, int sensorOrientation, DeviceOrien
       final chromaX = sx ~/ 2;
       final chromaY = sy ~/ 2;
       final yIndex = sy * yPlane.bytesPerRow + sx * (yPlane.bytesPerPixel ?? 1);
-      final chromaIndex = chromaY * uPlane.bytesPerRow + chromaX * (uPlane.bytesPerPixel ?? (interleaved ? 2 : 1));
+      final chromaIndex =
+          chromaY * uPlane.bytesPerRow +
+          chromaX * (uPlane.bytesPerPixel ?? (interleaved ? 2 : 1));
       final uIndex = chromaIndex + (interleaved && nv21 ? 1 : 0);
       final vIndex = interleaved
           ? chromaIndex + (nv21 ? 0 : 1)
-          : chromaY * vPlane.bytesPerRow + chromaX * (vPlane.bytesPerPixel ?? 1);
-      if (yIndex >= yPlane.bytes.length || uIndex >= uPlane.bytes.length || vIndex >= vPlane.bytes.length) {
+          : chromaY * vPlane.bytesPerRow +
+                chromaX * (vPlane.bytesPerPixel ?? 1);
+      if (yIndex >= yPlane.bytes.length ||
+          uIndex >= uPlane.bytes.length ||
+          vIndex >= vPlane.bytes.length) {
         throw const FormatException('Data warna kamera tidak lengkap');
       }
       final yy = math.max(0, yPlane.bytes[yIndex] - 16);
@@ -60,8 +77,12 @@ Uint8List encodeColorFrame(CameraImage frame, int sensorOrientation, DeviceOrien
       };
       final index = 8 + destination * 3;
       output[index] = ((298 * yy + 516 * u + 128) >> 8).clamp(0, 255).toInt();
-      output[index + 1] = ((298 * yy - 100 * u - 208 * v + 128) >> 8).clamp(0, 255).toInt();
-      output[index + 2] = ((298 * yy + 409 * v + 128) >> 8).clamp(0, 255).toInt();
+      output[index + 1] = ((298 * yy - 100 * u - 208 * v + 128) >> 8)
+          .clamp(0, 255)
+          .toInt();
+      output[index + 2] = ((298 * yy + 409 * v + 128) >> 8)
+          .clamp(0, 255)
+          .toInt();
     }
   }
   return output;
@@ -72,7 +93,11 @@ Uint8List encodeColorFrame(CameraImage frame, int sensorOrientation, DeviceOrien
 /// The crop matches the portrait face guide (width / height = 1 / 1.18), so
 /// callers can render it with [BoxFit.cover] without losing additional area.
 Uint8List encodeResultImage(Uint8List frame) {
-  if (frame.length < 8 || frame[0] != 76 || frame[1] != 86 || frame[2] != 67 || frame[3] != 49) {
+  if (frame.length < 8 ||
+      frame[0] != 76 ||
+      frame[1] != 86 ||
+      frame[2] != 67 ||
+      frame[3] != 49) {
     throw const FormatException('Frame hasil liveness tidak valid');
   }
   final width = frame[4] << 8 | frame[5];

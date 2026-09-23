@@ -34,13 +34,8 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  camera: ^0.12.0+2
-  flutter_bloc: ^9.1.1
-  dio: ^5.10.0
-  alice: ^1.2.0
-  alice_dio: ^1.2.0
-  json_annotation: ^4.12.0
-  image: ^4.10.1
+  liveness_flutter:
+    path: ../packages/liveness_flutter
 
 dependency_overrides:
   # 14.x uses AGP 9/Kotlin 2.3 syntax; this app builds with AGP 8.11.
@@ -57,8 +52,6 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   change_app_package_name: ^1.3.0
-  build_runner: ^2.15.1
-  json_serializable: ^6.14.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

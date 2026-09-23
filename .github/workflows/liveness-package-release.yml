@@ -1,0 +1,100 @@
+name: Release Flutter liveness package
+
+on:
+  push:
+    tags:
+      - 'liveness-v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing tag to release, for example liveness-v1.0.0
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: research
+    defaults:
+      run:
+        working-directory: packages/liveness_flutter
+
+    steps:
+      - name: Resolve release tag
+        id: release
+        working-directory: .
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_TAG: ${{ github.ref_name }}
+          MANUAL_TAG: ${{ inputs.release_tag }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            tag="$MANUAL_TAG"
+          else
+            tag="$PUSH_TAG"
+          fi
+          case "$tag" in
+            liveness-v*) ;;
+            *) echo 'Release tag must start with liveness-v'; exit 1 ;;
+          esac
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+          cache: true
+
+      - name: Generate production endpoint
+        env:
+          LIVENESS_API_URL: ${{ vars.LIVENESS_API_URL }}
+        run: dart run tool/generate_config.dart
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build package archive
+        working-directory: .
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          stage="$RUNNER_TEMP/liveness"
+          mkdir -p "$stage"
+          cp packages/liveness_flutter/pubspec.yaml packages/liveness_flutter/README.md packages/liveness_flutter/analysis_options.yaml "$stage/"
+          cp LICENSE "$stage/"
+          cp -R packages/liveness_flutter/lib "$stage/"
+          tar -C "$RUNNER_TEMP" -czf "liveness-${RELEASE_TAG}.tar.gz" liveness
+
+      - name: Verify generated package
+        working-directory: .
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          test -s "liveness-${RELEASE_TAG}.tar.gz"
+          if grep -q "generatedLivenessApiUrl = '';" packages/liveness_flutter/lib/src/core/liveness_config.g.dart; then
+            echo 'Generated package does not contain a production endpoint'
+            exit 1
+          fi
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          files: liveness-${{ steps.release.outputs.tag }}.tar.gz
+          generate_release_notes: true
+          fail_on_unmatched_files: true
