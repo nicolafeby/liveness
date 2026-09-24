@@ -251,10 +251,11 @@ packages:
   liveness_verify_flutter:
     dependency: "direct main"
     description:
-      path: "../packages/liveness_verify_flutter"
-      relative: true
-    source: path
-    version: "0.1.0"
+      name: liveness_verify_flutter
+      sha256: cdd7af3ef768df21150022d1798727e2f802087dc2bc03c790905d28a6c9bb82
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.1"
   matcher:
     dependency: transitive
     description:
