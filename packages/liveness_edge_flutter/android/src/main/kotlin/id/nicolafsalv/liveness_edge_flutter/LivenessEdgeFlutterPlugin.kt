@@ -15,7 +15,10 @@ import io.flutter.plugin.common.MethodChannel
 import java.nio.FloatBuffer
 import java.util.concurrent.Executors
 import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.exp
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     private lateinit var channel: MethodChannel
@@ -75,7 +78,17 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
         val offset=((nose.x()-(left.x()+right.x())/2)*dx+(nose.y()-(left.y()+right.y())/2)*dy)/(dx*dx+dy*dy)
         return mapOf("faceCount" to 1,"eyesDetected" to eyesDetected,"eyesOpen" to eyesOpen,"faceCenterX" to ((minX+maxX)/2).toDouble(),"faceCenterY" to ((minY+maxY)/2).toDouble(),
             "faceWidth" to (maxX-minX).toDouble(),"faceHeight" to (maxY-minY).toDouble(),"lighting" to lighting(bitmap,minX,minY,maxX,maxY),
-            "yaw" to Math.toDegrees(atan2((2*offset).toDouble(),1.0)),"liveScore" to passive(bitmap,minX,minY,maxX,maxY))
+            "yaw" to Math.toDegrees(atan2((2*offset).toDouble(),1.0)),"liveScore" to passive(bitmap,minX,minY,maxX,maxY),
+            "faceIdentity" to faceIdentity(points))
+    }
+
+    private fun faceIdentity(points: List<com.google.mediapipe.tasks.components.containers.NormalizedLandmark>): List<Double> {
+        val left=points[33];val right=points[263];val dx=right.x()-left.x();val dy=right.y()-left.y()
+        val scale=sqrt(dx*dx+dy*dy).coerceAtLeast(.0001f);val angle=atan2(dy,dx);val c=cos(angle);val s=sin(angle)
+        val cx=(left.x()+right.x())/2;val cy=(left.y()+right.y())/2
+        val indices=intArrayOf(10,152,33,263,133,362,1,61,291,234,454,168)
+        return indices.flatMap { index -> val point=points[index];val x=point.x()-cx;val y=point.y()-cy
+            listOf(((x*c+y*s)/scale).toDouble(),((-x*s+y*c)/scale).toDouble()) }
     }
 
     private fun lighting(bitmap:Bitmap,x0:Float,y0:Float,x1:Float,y1:Float):String? {

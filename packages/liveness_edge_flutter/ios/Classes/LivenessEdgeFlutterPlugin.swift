@@ -84,10 +84,21 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
     let offset=((nose.x-(left.x+right.x)/2)*dx+(nose.y-(left.y+right.y)/2)*dy)/(dx*dx+dy*dy)
     var output:[String:Any] = ["faceCount":1,"eyesDetected":eyesDetected,"eyesOpen":eyesOpen,"faceCenterX":Double((minX+maxX)/2),
       "faceCenterY":Double((minY+maxY)/2),"faceWidth":Double(maxX-minX),"faceHeight":Double(maxY-minY),
-      "yaw":Double(atan2(2*offset,1))*180/Double.pi,"liveScore":try passive(data,width,height,minX,minY,maxX,maxY)]
+      "yaw":Double(atan2(2*offset,1))*180/Double.pi,"liveScore":try passive(data,width,height,minX,minY,maxX,maxY),
+      "faceIdentity":faceIdentity(points)]
     let mean = luminance(data,width,height,minX,minY,maxX,maxY)
     if mean < 55 { output["lighting"]="dark" } else if mean > 205 { output["lighting"]="bright" }
     return output
+  }
+
+  private func faceIdentity(_ points: [NormalizedLandmark]) -> [Double] {
+    let left=points[33],right=points[263],dx=right.x-left.x,dy=right.y-left.y
+    let scale=max(0.0001,sqrt(dx*dx+dy*dy)),angle=atan2(dy,dx),c=cos(angle),s=sin(angle)
+    let cx=(left.x+right.x)/2,cy=(left.y+right.y)/2
+    return [10,152,33,263,133,362,1,61,291,234,454,168].flatMap { index -> [Double] in
+      let x=points[index].x-cx,y=points[index].y-cy
+      return [Double((x*c+y*s)/scale),Double((-x*s+y*c)/scale)]
+    }
   }
 
   private func luminance(_ data:Data,_ w:Int,_ h:Int,_ x0:Float,_ y0:Float,_ x1:Float,_ y1:Float)->Double {

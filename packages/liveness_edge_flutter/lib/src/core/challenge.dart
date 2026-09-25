@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../models/liveness_result.dart';
 import '../models/liveness_status.dart';
 import '../models/liveness_validation.dart';
@@ -18,9 +20,14 @@ class LivenessConfiguration {
     this.timeout = const Duration(minutes: 2),
     this.maxFrames = 180,
     this.passiveThreshold = .5,
+    this.faceIdentityThreshold = .22,
   }) : assert(
          passiveThreshold >= 0 && passiveThreshold <= 1,
          'passiveThreshold must be between 0 and 1',
+       ),
+       assert(
+         faceIdentityThreshold > 0,
+         'faceIdentityThreshold must be greater than 0',
        );
 
   /// Checks enabled for this session.
@@ -37,6 +44,12 @@ class LivenessConfiguration {
 
   /// Minimum median passive anti-spoof score required to pass.
   final double passiveThreshold;
+
+  /// Maximum normalized landmark distance still considered the same face.
+  ///
+  /// Identity continuity is evaluated only while the face is frontal. Two
+  /// consecutive mismatches are required to avoid resets caused by noise.
+  final double faceIdentityThreshold;
 }
 
 class LivenessChallenge {
@@ -59,9 +72,12 @@ class LivenessChallenge {
       closedAt,
       unstableSince,
       eyesMissingSince,
+      faceMissingSince,
       qualityIssueSince;
   String? qualityIssue;
   final List<double> scores = [];
+  List<double>? faceIdentity;
+  int identityMismatches = 0;
 
   static const _inputGracePeriod = Duration(milliseconds: 750);
   static const _eyesGracePeriod = Duration(milliseconds: 500);
@@ -77,11 +93,13 @@ class LivenessChallenge {
       return result();
     }
     if (o.faceCount != 1) {
-      return _handleInputIssue(
-        now,
-        'Pastikan tepat satu wajah terlihat dan hadap kamera',
-      );
+      faceMissingSince ??= now;
+      const message = 'Pastikan tepat satu wajah terlihat dan hadap kamera';
+      return now.difference(faceMissingSince!) >= const Duration(seconds: 2)
+          ? _reset('Wajah tidak terdeteksi. Verifikasi dimulai kembali.')
+          : result(message);
     }
+    faceMissingSince = null;
     if (o.lighting == 'dark') {
       return _handleInputIssue(
         now,
@@ -97,6 +115,8 @@ class LivenessChallenge {
     qualityIssueSince = null;
     qualityIssue = null;
     final guidance = _alignment(o);
+    final identityReset = _verifyFaceIdentity(o, guidance);
+    if (identityReset != null) return identityReset;
     if (!o.eyesDetected) {
       if (!_isActiveChallenge) return result(_eyes);
       eyesMissingSince ??= now;
@@ -189,6 +209,48 @@ class LivenessChallenge {
   static const _eyes =
       'Mata belum terlihat jelas. Hadap kamera dan pastikan area mata tidak tertutup.';
   static const _openEyes = 'Buka kedua mata dan lihat ke arah kamera.';
+  static const _differentFace =
+      'Wajah berbeda terdeteksi. Verifikasi dimulai kembali.';
+
+  LivenessResult? _verifyFaceIdentity(
+    LivenessObservation observation,
+    String? guidance,
+  ) {
+    final identity = observation.faceIdentity;
+    final isFrontal =
+        guidance == null &&
+        observation.eyesDetected &&
+        (observation.yaw?.abs() ?? 0) <= 10;
+    if (identity == null || identity.isEmpty || !isFrontal) return null;
+
+    final baseline = faceIdentity;
+    if (baseline == null || baseline.length != identity.length) {
+      faceIdentity = List<double>.of(identity);
+      identityMismatches = 0;
+      return null;
+    }
+
+    var squaredDistance = 0.0;
+    for (var i = 0; i < baseline.length; i++) {
+      final delta = identity[i] - baseline[i];
+      squaredDistance += delta * delta;
+    }
+    final distance = math.sqrt(squaredDistance / baseline.length);
+    if (distance > configuration.faceIdentityThreshold) {
+      identityMismatches++;
+      if (identityMismatches >= 2) return _reset(_differentFace);
+      return null;
+    }
+
+    identityMismatches = 0;
+    // Slowly absorb detector jitter without allowing a new face to replace the
+    // baseline in one frame.
+    const weight = .05;
+    for (var i = 0; i < baseline.length; i++) {
+      baseline[i] = baseline[i] * (1 - weight) + identity[i] * weight;
+    }
+    return null;
+  }
 
   bool get _isActiveChallenge =>
       status == LivenessStatus.blink ||
@@ -244,10 +306,13 @@ class LivenessChallenge {
     status = LivenessStatus.align;
     aligned = turned = returned = 0;
     baseX = baseY = baseW = baseH = baseYaw = null;
-    blinkStartedAt = closedAt = unstableSince = eyesMissingSince = null;
+    blinkStartedAt = closedAt = unstableSince = eyesMissingSince =
+        faceMissingSince = null;
     qualityIssueSince = null;
     qualityIssue = null;
     scores.clear();
+    faceIdentity = null;
+    identityMismatches = 0;
     return result(message);
   }
 

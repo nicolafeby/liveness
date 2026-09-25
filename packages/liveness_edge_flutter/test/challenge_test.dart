@@ -173,7 +173,44 @@ void main() {
     final result = challenge.advance(const LivenessObservation(faceCount: 0));
 
     expect(result.status, LivenessStatus.blink);
-    expect(result.instruction, 'Kedipkan kedua mata sekali.');
+    expect(result.instruction, contains('tepat satu wajah'));
+  });
+
+  test('restarts from alignment when face is missing for two seconds', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.blink}),
+    );
+
+    challenge.advance(front);
+    challenge.advance(front);
+    challenge.advance(front);
+    expect(challenge.status, LivenessStatus.blink);
+
+    challenge.advance(const LivenessObservation(faceCount: 0));
+    challenge.faceMissingSince = DateTime.now().subtract(
+      const Duration(seconds: 2),
+    );
+    final reset = challenge.advance(const LivenessObservation(faceCount: 0));
+
+    expect(reset.status, LivenessStatus.align);
+    expect(reset.instruction, contains('Wajah tidak terdeteksi'));
+  });
+
+  test('cancels face-missing timer when face returns', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.blink}),
+    );
+
+    challenge.advance(front);
+    challenge.advance(front);
+    challenge.advance(front);
+    challenge.advance(const LivenessObservation(faceCount: 0));
+    expect(challenge.faceMissingSince, isNotNull);
+
+    challenge.advance(front);
+
+    expect(challenge.status, LivenessStatus.blink);
+    expect(challenge.faceMissingSince, isNull);
   });
 
   test('collects enough scores for passive check when blink is disabled', () {
@@ -217,5 +254,75 @@ void main() {
       ),
       throwsArgumentError,
     );
+  });
+
+  test('restarts from alignment when the face identity changes', () {
+    const firstFace = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+      faceIdentity: [0, 0, 0, 0],
+    );
+    const differentFace = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+      faceIdentity: [1, 1, 1, 1],
+    );
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.blink}),
+    );
+
+    challenge.advance(firstFace);
+    challenge.advance(firstFace);
+    challenge.advance(firstFace);
+    expect(challenge.status, LivenessStatus.blink);
+
+    expect(challenge.advance(differentFace).status, LivenessStatus.blink);
+    final reset = challenge.advance(differentFace);
+
+    expect(reset.status, LivenessStatus.align);
+    expect(reset.instruction, contains('Wajah berbeda'));
+  });
+
+  test('does not reset identity on a single noisy frame', () {
+    const identified = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+      faceIdentity: [0, 0, 0, 0],
+    );
+    const noisy = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+      faceIdentity: [1, 1, 1, 1],
+    );
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.blink}),
+    );
+
+    challenge.advance(identified);
+    challenge.advance(identified);
+    challenge.advance(identified);
+    challenge.advance(noisy);
+
+    expect(challenge.advance(identified).status, LivenessStatus.blink);
   });
 }
