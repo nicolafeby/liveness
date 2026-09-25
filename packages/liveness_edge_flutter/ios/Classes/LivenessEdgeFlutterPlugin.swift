@@ -21,7 +21,7 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
       queue.async { self.respond(result) { try self.initializeModels(); return nil } }
     case "analyze":
       guard let data = call.arguments as? FlutterStandardTypedData else {
-        result(FlutterError(code: "invalid_frame", message: "Frame harus berupa byte array", details: nil)); return
+        result(FlutterError(code: "invalid_frame", message: "The frame must be a byte array", details: nil)); return
       }
       queue.async { self.respond(result) { try self.analyze(data.data) } }
     case "close":
@@ -39,7 +39,7 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
   private func asset(_ name: String, _ ext: String) throws -> String {
     let bundle = Bundle(for: LivenessEdgeFlutterPlugin.self)
     guard let path = bundle.path(forResource: name, ofType: ext) else {
-      throw NSError(domain: "LivenessEdge", code: 1, userInfo: [NSLocalizedDescriptionKey: "Model \(name).\(ext) tidak ditemukan"])
+      throw NSError(domain: "LivenessEdge", code: 1, userInfo: [NSLocalizedDescriptionKey: "Model \(name).\(ext) was not found"])
     }
     return path
   }
@@ -59,9 +59,9 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
 
   private func analyze(_ data: Data) throws -> [String: Any] {
     try initializeModels()
-    guard data.count >= 8, String(data: data.prefix(4), encoding: .ascii) == "LVC1" else { throw edge("Format frame tidak valid") }
+    guard data.count >= 8, String(data: data.prefix(4), encoding: .ascii) == "LVC1" else { throw edge("Invalid frame format") }
     let width = Int(data[4]) << 8 | Int(data[5]); let height = Int(data[6]) << 8 | Int(data[7])
-    guard data.count == 8 + width * height * 3 else { throw edge("Ukuran frame tidak valid") }
+    guard data.count == 8 + width * height * 3 else { throw edge("Invalid frame dimensions") }
     var rgba = [UInt8](repeating: 255, count: width * height * 4)
     data.withUnsafeBytes { raw in
       let source = raw.bindMemory(to: UInt8.self)
@@ -71,7 +71,7 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
     guard let provider = CGDataProvider(data: Data(rgba) as CFData), let cg = CGImage(width: width, height: height,
       bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width*4, space: color,
       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue), provider: provider,
-      decode: nil, shouldInterpolate: false, intent: .defaultIntent) else { throw edge("Frame tidak dapat dibaca") }
+      decode: nil, shouldInterpolate: false, intent: .defaultIntent) else { throw edge("The frame could not be read") }
     let detected = try landmarker!.detect(image: MPImage(uiImage: UIImage(cgImage: cg)))
     guard detected.faceLandmarks.count == 1 else { return ["faceCount": detected.faceLandmarks.count] }
     let points = detected.faceLandmarks[0]
@@ -95,7 +95,15 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
     let left=points[33],right=points[263],dx=right.x-left.x,dy=right.y-left.y
     let scale=max(0.0001,sqrt(dx*dx+dy*dy)),angle=atan2(dy,dx),c=cos(angle),s=sin(angle)
     let cx=(left.x+right.x)/2,cy=(left.y+right.y)/2
-    return [10,152,33,263,133,362,1,61,291,234,454,168].flatMap { index -> [Double] in
+    // Use rigid face regions across the contour, eyes, brows, and nose. Mouth
+    // landmarks are excluded so expression changes do not look like a new face.
+    let indices = [
+      10, 152, 127, 356, 234, 454, 93, 323, 132, 361,
+      33, 133, 159, 145, 263, 362, 386, 374,
+      70, 105, 107, 336, 334, 300,
+      1, 2, 4, 5, 168, 197, 195, 6
+    ]
+    return indices.flatMap { index -> [Double] in
       let x=points[index].x-cx,y=points[index].y-cy
       return [Double((x*c+y*s)/scale),Double((-x*s+y*c)/scale)]
     }
@@ -116,7 +124,7 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
     let tensorData=input.withUnsafeBytes{Data($0)};let value=try ORTValue(tensorData:NSMutableData(data:tensorData),elementType:.float,shape:[1,3,80,80])
     let session=antiSpoof!,inputName=try session.inputNames()[0],outputName=try session.outputNames()[0]
     let outputs=try session.run(withInputs:[inputName:value],outputNames:[outputName],runOptions:nil)
-    guard let bytes=try outputs[outputName]?.tensorData() as Data? else { throw edge("Output anti-spoofing kosong") }
+    guard let bytes=try outputs[outputName]?.tensorData() as Data? else { throw edge("The anti-spoofing output is empty") }
     let logits:[Float]=bytes.withUnsafeBytes{Array($0.bindMemory(to:Float.self))};let peak=logits.max() ?? 0;let exps=logits.map{exp(Double($0-peak))}
     return exps[1]/exps.reduce(0,+)
   }

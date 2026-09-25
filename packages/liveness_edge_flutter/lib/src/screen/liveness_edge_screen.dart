@@ -48,8 +48,7 @@ class LivenessEdgeScreen extends StatefulWidget {
   State<LivenessEdgeScreen> createState() => _LivenessEdgeScreenState();
 }
 
-class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
-    with WidgetsBindingObserver {
+class _LivenessEdgeScreenState extends State<LivenessEdgeScreen> with WidgetsBindingObserver {
   final _detector = LivenessEdgeDetector();
   CameraController? _camera;
   late LivenessChallenge _challenge;
@@ -79,11 +78,9 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
     try {
       await _detector.initialize();
       final cameras = await availableCameras();
-      final front = cameras
-          .where((c) => c.lensDirection == CameraLensDirection.front)
-          .firstOrNull;
+      final front = cameras.where((c) => c.lensDirection == CameraLensDirection.front).firstOrNull;
       if (front == null) {
-        throw const LivenessEdgeException('Kamera depan tidak tersedia');
+        throw const LivenessEdgeException('The front camera is unavailable');
       }
       final camera = CameraController(
         front,
@@ -110,22 +107,14 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
   }
 
   void _process(CameraImage image, int generation) {
-    final interval =
-        _result?.status == LivenessStatus.blink ||
-            _result?.status == LivenessStatus.reopen
-        ? 50
-        : 200;
+    final interval = _result?.status == LivenessStatus.blink || _result?.status == LivenessStatus.reopen ? 50 : 200;
     if (_busy || _clock.elapsedMilliseconds - _lastFrame < interval) return;
     _busy = true;
     _lastFrame = _clock.elapsedMilliseconds;
     unawaited(() async {
       try {
         final camera = _camera!;
-        final frame = encodeColorFrame(
-          image,
-          camera.description.sensorOrientation,
-          camera.value.deviceOrientation,
-        );
+        final frame = encodeColorFrame(image, camera.description.sensorOrientation, camera.value.deviceOrientation);
         final observation = await _detector.analyze(frame);
         final next = _challenge.advance(observation);
         if (!mounted || generation != _generation) return;
@@ -161,8 +150,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       _generation++;
       _camera?.dispose();
       _camera = null;
@@ -188,10 +176,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final guideWidth = math.min(
-              constraints.maxWidth * .76,
-              constraints.maxHeight * .52 / 1.28,
-            );
+            final guideWidth = math.min(constraints.maxWidth * .76, constraints.maxHeight * .52 / 1.28);
             final guideSize = Size(guideWidth, guideWidth * 1.28);
             final status = _result?.status;
 
@@ -201,9 +186,8 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
                   top: 8,
                   right: 12,
                   child: IconButton(
-                    tooltip: 'Tutup',
-                    onPressed:
-                        widget.onCancel ?? () => Navigator.maybePop(context),
+                    tooltip: 'Close',
+                    onPressed: widget.onCancel ?? () => Navigator.maybePop(context),
                     icon: const Icon(Icons.close_rounded),
                     color: const Color(0xFF202727),
                   ),
@@ -226,14 +210,10 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
                           child: Column(
                             children: [
                               ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  minHeight: 54,
-                                ),
+                                constraints: const BoxConstraints(minHeight: 54),
                                 child: Center(
                                   child: Text(
-                                    _error ??
-                                        _result?.instruction ??
-                                        'Menyiapkan kamera…',
+                                    _error ?? _result?.instruction ?? 'Preparing the camera…',
                                     textAlign: TextAlign.center,
                                     maxLines: 3,
                                     style: TextStyle(
@@ -251,14 +231,9 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
                               Text(
                                 _supportingText(status),
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Color(0xFF77807E),
-                                  fontSize: 14,
-                                  height: 1.4,
-                                ),
+                                style: const TextStyle(color: Color(0xFF77807E), fontSize: 14, height: 1.4),
                               ),
-                              if (_error != null ||
-                                  status == LivenessStatus.failed) ...[
+                              if (_error != null || status == LivenessStatus.failed) ...[
                                 const SizedBox(height: 16),
                                 _RetryButton(onPressed: _start),
                               ],
@@ -290,16 +265,16 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
   };
 
   String _supportingText(LivenessStatus? status) {
-    if (_error != null) return 'Pastikan izin kamera aktif, lalu coba kembali.';
+    if (_error != null) {
+      return 'Make sure camera permission is enabled, then try again.';
+    }
     return switch (status) {
-      null => 'Mohon tunggu sebentar',
-      LivenessStatus.align ||
-      LivenessStatus.open => 'Posisikan seluruh wajah di dalam bingkai',
-      LivenessStatus.blink ||
-      LivenessStatus.reopen => 'Jaga posisi wajah tetap stabil',
-      LivenessStatus.move => 'Ikuti petunjuk dengan gerakan perlahan',
-      LivenessStatus.passed => 'Wajah berhasil diverifikasi',
-      LivenessStatus.failed => 'Verifikasi belum berhasil',
+      null => 'Please wait a moment',
+      LivenessStatus.align || LivenessStatus.open => 'Position your entire face within the frame',
+      LivenessStatus.blink || LivenessStatus.reopen => 'Keep your face steady',
+      LivenessStatus.move => 'Follow the instructions with slow movements',
+      LivenessStatus.passed => 'Face verified successfully',
+      LivenessStatus.failed => 'Verification was unsuccessful',
     };
   }
 }
@@ -321,13 +296,7 @@ class _RetryButton extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [Color(0xFF7548EE), Color(0xFF5D31E8)],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x385D31E8),
-            blurRadius: 18,
-            offset: Offset(0, 7),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Color(0x385D31E8), blurRadius: 18, offset: Offset(0, 7))],
       ),
       child: Material(
         color: Colors.transparent,
@@ -342,7 +311,7 @@ class _RetryButton extends StatelessWidget {
                 Icon(Icons.refresh_rounded, color: Colors.white, size: 20),
                 SizedBox(width: 9),
                 Text(
-                  'Coba lagi',
+                  'Try again',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 15,
@@ -361,12 +330,7 @@ class _RetryButton extends StatelessWidget {
 }
 
 class _FaceCaptureGuide extends StatelessWidget {
-  const _FaceCaptureGuide({
-    required this.size,
-    required this.camera,
-    required this.progress,
-    required this.completed,
-  });
+  const _FaceCaptureGuide({required this.size, required this.camera, required this.progress, required this.completed});
 
   final Size size;
   final CameraController? camera;
@@ -393,11 +357,7 @@ class _FaceCaptureGuide extends StatelessWidget {
               duration: const Duration(milliseconds: 480),
               curve: Curves.easeOutCubic,
               builder: (context, value, child) => CustomPaint(
-                painter: _SegmentedRingPainter(
-                  progress: value,
-                  completed: completed,
-                  padding: ringPadding,
-                ),
+                painter: _SegmentedRingPainter(progress: value, completed: completed, padding: ringPadding),
               ),
             ),
           ),
@@ -417,32 +377,19 @@ class _FaceCaptureGuide extends StatelessWidget {
             colors: [Color(0xFFF0F3F2), Color(0xFFDDE5E3)],
           ),
         ),
-        child: Center(
-          child: CircularProgressIndicator(
-            strokeWidth: 2.5,
-            color: Color(0xFF6635E8),
-          ),
-        ),
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFF6635E8))),
       );
     }
     final preview = controller.value.previewSize!;
     return FittedBox(
       fit: BoxFit.cover,
-      child: SizedBox(
-        width: preview.height,
-        height: preview.width,
-        child: CameraPreview(controller),
-      ),
+      child: SizedBox(width: preview.height, height: preview.width, child: CameraPreview(controller)),
     );
   }
 }
 
 class _SegmentedRingPainter extends CustomPainter {
-  const _SegmentedRingPainter({
-    required this.progress,
-    required this.completed,
-    required this.padding,
-  });
+  const _SegmentedRingPainter({required this.progress, required this.completed, required this.padding});
 
   final double progress;
   final bool completed;
@@ -462,14 +409,8 @@ class _SegmentedRingPainter extends CustomPainter {
       final angle = -math.pi / 2 + (math.pi * 2 * index / _segments);
       final cosAngle = math.cos(angle);
       final sinAngle = math.sin(angle);
-      final start = Offset(
-        center.dx + innerRx * cosAngle,
-        center.dy + innerRy * sinAngle,
-      );
-      final end = Offset(
-        center.dx + (innerRx + tickLength) * cosAngle,
-        center.dy + (innerRy + tickLength) * sinAngle,
-      );
+      final start = Offset(center.dx + innerRx * cosAngle, center.dy + innerRy * sinAngle);
+      final end = Offset(center.dx + (innerRx + tickLength) * cosAngle, center.dy + (innerRy + tickLength) * sinAngle);
       final isActive = index < activeSegments;
       final color = completed
           ? const Color(0xFF25C995)
@@ -490,7 +431,5 @@ class _SegmentedRingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SegmentedRingPainter oldDelegate) =>
-      oldDelegate.progress != progress ||
-      oldDelegate.completed != completed ||
-      oldDelegate.padding != padding;
+      oldDelegate.progress != progress || oldDelegate.completed != completed || oldDelegate.padding != padding;
 }

@@ -15,14 +15,17 @@ class ExampleHome extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (_) => LivenessEdgeScreen(
+              configuration: const LivenessConfiguration(
+                passiveAntiSpoofSensitivity: PassiveAntiSpoofSensitivity.high,
+                faceIdentitySensitivity: FaceIdentitySensitivity.strict,
+              ),
               onSuccess: (_) => Navigator.pop(context),
-              onFailed: (result) => ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text(result.instruction))),
+              onFailed: (result) =>
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.instruction))),
             ),
           ),
         ),
-        child: const Text('Mulai verifikasi offline'),
+        child: const Text('Start offline verification'),
       ),
     ),
   );

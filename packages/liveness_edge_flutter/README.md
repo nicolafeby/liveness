@@ -87,8 +87,14 @@ Future<LivenessResult?> captureLiveness(BuildContext context) async {
           },
           timeout: Duration(minutes: 2),
           maxFrames: 180,
-          passiveThreshold: 0.5,
-          faceIdentityThreshold: 0.22,
+          passiveAntiSpoofSensitivity: PassiveAntiSpoofSensitivity.high,
+          // Or use a calibrated value:
+          // passiveAntiSpoofSensitivity:
+          //     PassiveAntiSpoofSensitivity.withValue(0.55),
+          faceIdentitySensitivity: FaceIdentitySensitivity.high,
+          // Or use a calibrated value:
+          // faceIdentitySensitivity:
+          //     FaceIdentitySensitivity.withValue(0.05),
         ),
         onSuccess: (result) {
           verifiedResult = result;
@@ -117,22 +123,24 @@ does not upload or persist either value.
 | `validations` | All validations | Enabled checks: `blink`, `headTurn`, and/or `passiveAntiSpoof`. Face alignment and input-quality checks always run. |
 | `timeout` | 2 minutes | Maximum session duration. |
 | `maxFrames` | 180 | Maximum analyzed frames before failure. |
-| `passiveThreshold` | 0.5 | Minimum median passive score required to pass. |
-| `faceIdentityThreshold` | 0.22 | Maximum normalized landmark distance considered the same face. |
+| `passiveAntiSpoofSensitivity` | `balanced` | Anti-spoof preset: `low` (0.40), `balanced` (0.50), `high` (0.60), `strict` (0.70), or `withValue(...)` for a custom value between 0 and 1. |
+| `faceIdentitySensitivity` | `balanced` | Face replacement preset: `low` (0.16), `balanced` (0.10), `high` (0.06), `strict` (0.035), or `withValue(...)` for a custom value greater than 0. |
 
 Treat the default threshold as a starting point. Calibrate it using genuine
 users, target devices, lighting conditions, and representative attacks.
 At least one validation must be enabled. Disabled active challenges are skipped,
-so their instructions are not shown. `passiveThreshold` is ignored when
+so their instructions are not shown. Passive sensitivity is ignored when
 `passiveAntiSpoof` is disabled.
 
-The package also keeps a normalized, on-device landmark descriptor for the
-first aligned face. If a different frontal face is detected in two consecutive
-frames, the active challenge returns to the alignment step. Requiring two
+The package also keeps a frozen, normalized, on-device landmark descriptor for
+the first aligned face. If a different frontal face is detected in two
+consecutive frames, the active challenge returns to the alignment step. A
+session cannot pass while an identity mismatch is pending, which closes the
+single-frame replacement gap at the end of a blink. Requiring two mismatching
 frames prevents a single noisy landmark reading from restarting the flow.
-If no valid single face is detected continuously for two seconds, the flow also
-returns to the alignment step. A face returning before that timeout preserves
-the current challenge progress.
+If no valid single face is detected during an active challenge for 400 ms, the
+flow returns to alignment. Before a challenge starts, the grace period remains
+two seconds.
 
 ### Callback behavior
 
@@ -218,7 +226,7 @@ MiniFASNetV2 model before commercial distribution.
 - **Front camera unavailable:** the capture screen reports an error and allows
   retrying; use a physical device with a front-facing camera.
 - **Frequent passive failures:** test representative lighting and devices before
-  adjusting `passiveThreshold`; lowering it increases spoof acceptance risk.
+  adjusting the passive sensitivity; lowering it increases spoof acceptance risk.
 - **Simulator or emulator:** camera and native inference behavior can differ
   from physical hardware, so release validation should use real devices.
 
