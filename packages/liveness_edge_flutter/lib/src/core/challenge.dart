@@ -1,5 +1,6 @@
 import '../models/liveness_result.dart';
 import '../models/liveness_status.dart';
+import '../models/liveness_validation.dart';
 import '../models/observation.dart';
 
 /// Settings that control an on-device liveness session.
@@ -9,10 +10,24 @@ class LivenessConfiguration {
   /// [passiveThreshold] is expected to be between `0` and `1`. Calibrate it
   /// with data representative of the devices and attacks in your environment.
   const LivenessConfiguration({
+    this.validations = const {
+      LivenessValidation.blink,
+      LivenessValidation.headTurn,
+      LivenessValidation.passiveAntiSpoof,
+    },
     this.timeout = const Duration(minutes: 2),
     this.maxFrames = 180,
     this.passiveThreshold = .5,
-  });
+  }) : assert(
+         passiveThreshold >= 0 && passiveThreshold <= 1,
+         'passiveThreshold must be between 0 and 1',
+       );
+
+  /// Checks enabled for this session.
+  ///
+  /// Face count, lighting, alignment, and stability remain mandatory input
+  /// quality checks regardless of this selection.
+  final Set<LivenessValidation> validations;
 
   /// Maximum wall-clock duration of a session.
   final Duration timeout;
@@ -26,7 +41,15 @@ class LivenessConfiguration {
 
 class LivenessChallenge {
   LivenessChallenge([this.configuration = const LivenessConfiguration()])
-    : _started = DateTime.now();
+    : _started = DateTime.now() {
+    if (configuration.validations.isEmpty) {
+      throw ArgumentError.value(
+        configuration.validations,
+        'validations',
+        'At least one validation is required',
+      );
+    }
+  }
   final LivenessConfiguration configuration;
   final DateTime _started;
   LivenessStatus status = LivenessStatus.align;
@@ -39,6 +62,9 @@ class LivenessChallenge {
   double? baseX, baseY, baseW, baseH, baseYaw;
   DateTime? closedAt;
   final List<double> scores = [];
+
+  bool _uses(LivenessValidation validation) =>
+      configuration.validations.contains(validation);
 
   LivenessResult advance(LivenessObservation o) {
     if (++frames > configuration.maxFrames ||
@@ -56,7 +82,8 @@ class LivenessChallenge {
       return _reset('Wajah terlalu terang, hindari cahaya langsung');
     }
     final guidance = _alignment(o);
-    if (status != LivenessStatus.move &&
+    if (_uses(LivenessValidation.passiveAntiSpoof) &&
+        status != LivenessStatus.move &&
         guidance == null &&
         o.liveScore != null) {
       scores.add(o.liveScore!);
@@ -75,7 +102,16 @@ class LivenessChallenge {
       baseY = o.faceCenterY;
       baseW = o.faceWidth;
       baseH = o.faceHeight;
-      status = LivenessStatus.blink;
+      if (_uses(LivenessValidation.blink)) {
+        status = LivenessStatus.blink;
+      } else if (_uses(LivenessValidation.passiveAntiSpoof) &&
+          scores.length < 5) {
+        return result('Tetap hadapkan wajah ke kamera');
+      } else if (_uses(LivenessValidation.headTurn)) {
+        status = LivenessStatus.move;
+      } else {
+        return _finish();
+      }
     } else if ((status == LivenessStatus.blink ||
             status == LivenessStatus.reopen) &&
         !_stable(o)) {
@@ -95,7 +131,13 @@ class LivenessChallenge {
         reopened = 0;
         return result('Kedipan belum terdeteksi. Coba kedip sekali lagi.');
       }
-      if (o.eyesOpen && ++reopened >= 2) status = LivenessStatus.move;
+      if (o.eyesOpen && ++reopened >= 2) {
+        if (_uses(LivenessValidation.headTurn)) {
+          status = LivenessStatus.move;
+        } else {
+          return _finish();
+        }
+      }
       if (!o.eyesOpen) reopened = 0;
     } else if (status == LivenessStatus.move) {
       if (o.yaw == null) {
@@ -110,15 +152,7 @@ class LivenessChallenge {
             ? returned + 1
             : 0;
         if (returned >= 2) {
-          final score = _median(scores);
-          status = scores.length >= 5 && score >= configuration.passiveThreshold
-              ? LivenessStatus.passed
-              : LivenessStatus.failed;
-          return result(
-            status == LivenessStatus.failed
-                ? 'Verifikasi gagal, terdeteksi spoofing'
-                : null,
-          );
+          return _finish();
         }
       }
     }
@@ -163,6 +197,22 @@ class LivenessChallenge {
     return sorted.length.isOdd
         ? sorted[middle]
         : (sorted[middle - 1] + sorted[middle]) / 2;
+  }
+
+  LivenessResult _finish() {
+    if (!_uses(LivenessValidation.passiveAntiSpoof)) {
+      status = LivenessStatus.passed;
+      return result();
+    }
+    final score = _median(scores);
+    status = scores.length >= 5 && score >= configuration.passiveThreshold
+        ? LivenessStatus.passed
+        : LivenessStatus.failed;
+    return result(
+      status == LivenessStatus.failed
+          ? 'Verifikasi gagal, terdeteksi spoofing'
+          : null,
+    );
   }
 
   LivenessResult result([String? message]) => LivenessResult(

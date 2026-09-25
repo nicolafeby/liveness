@@ -80,6 +80,11 @@ Future<LivenessResult?> captureLiveness(BuildContext context) async {
     MaterialPageRoute(
       builder: (routeContext) => LivenessEdgeScreen(
         configuration: const LivenessConfiguration(
+          validations: {
+            LivenessValidation.blink,
+            LivenessValidation.headTurn,
+            LivenessValidation.passiveAntiSpoof,
+          },
           timeout: Duration(minutes: 2),
           maxFrames: 180,
           passiveThreshold: 0.5,
@@ -108,12 +113,16 @@ does not upload or persist either value.
 
 | Property | Default | Description |
 | --- | ---: | --- |
+| `validations` | All validations | Enabled checks: `blink`, `headTurn`, and/or `passiveAntiSpoof`. Face alignment and input-quality checks always run. |
 | `timeout` | 2 minutes | Maximum session duration. |
 | `maxFrames` | 180 | Maximum analyzed frames before failure. |
 | `passiveThreshold` | 0.5 | Minimum median passive score required to pass. |
 
 Treat the default threshold as a starting point. Calibrate it using genuine
 users, target devices, lighting conditions, and representative attacks.
+At least one validation must be enabled. Disabled active challenges are skipped,
+so their instructions are not shown. `passiveThreshold` is ignored when
+`passiveAntiSpoof` is disabled.
 
 ### Callback behavior
 
