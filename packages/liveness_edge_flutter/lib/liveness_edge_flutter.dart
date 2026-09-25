@@ -9,4 +9,5 @@ export 'src/core/challenge.dart' show LivenessConfiguration;
 export 'src/core/detector.dart' show LivenessEdgeException;
 export 'src/models/liveness_result.dart';
 export 'src/models/liveness_status.dart';
+export 'src/models/liveness_validation.dart';
 export 'src/screen/liveness_edge_screen.dart';
