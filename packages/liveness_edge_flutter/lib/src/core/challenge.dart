@@ -5,6 +5,88 @@ import '../models/liveness_status.dart';
 import '../models/liveness_validation.dart';
 import '../models/observation.dart';
 
+/// User-facing text shown during a liveness session.
+///
+/// All values default to English. Override only the values needed to localize
+/// the experience or match your product's tone of voice.
+class LivenessMessages {
+  const LivenessMessages({
+    this.oneFaceRequired = 'Make sure exactly one face is visible and look at the camera.',
+    this.faceNotDetected = 'Face not detected. Verification has been restarted.',
+    this.faceTooDark = 'Your face is too dark. Move to a brighter place.',
+    this.faceTooBright = 'Your face is too bright. Avoid direct light.',
+    this.keepFacingCamera = 'Keep facing the camera.',
+    this.keepFaceStable = 'Keep your face at the same distance and height.',
+    this.blinkNotDetected = 'Blink not detected. Try blinking once more.',
+    this.faceDirectionUnavailable = 'Face the camera so your face direction can be detected.',
+    this.eyesNotVisible = 'Your eyes are not clearly visible. Face the camera and make sure they are not covered.',
+    this.openEyes = 'Open both eyes and look at the camera.',
+    this.differentFace = 'A different face was detected. Verification has been restarted.',
+    this.moveCloser = 'Move closer to the camera.',
+    this.moveFarther = 'Move farther from the camera.',
+    this.moveRight = 'Move your face to the right.',
+    this.moveLeft = 'Move your face to the left.',
+    this.moveDown = 'Move your face down.',
+    this.moveUp = 'Move your face up.',
+    this.spoofingDetected = 'Verification failed. Spoofing was detected.',
+    this.alignFace = 'Face the camera and make sure both eyes are clearly visible.',
+    this.blink = 'Blink both eyes once.',
+    this.reopenEyes = 'Open both eyes again.',
+    this.returnToCamera = 'Face the camera again.',
+    this.turnHead = 'Turn your head slightly left or right.',
+    this.verificationComplete = 'Verification complete.',
+    this.verificationFailed = 'Verification failed.',
+    this.frontCameraUnavailable = 'Front camera is not available.',
+    this.close = 'Close',
+    this.preparingCamera = 'Preparing camera…',
+    this.cameraPermissionHelp = 'Make sure camera permission is enabled, then try again.',
+    this.pleaseWait = 'Please wait a moment.',
+    this.positionFaceInFrame = 'Position your entire face inside the frame.',
+    this.holdStill = 'Keep your face still.',
+    this.moveSlowly = 'Follow the instruction with a slow movement.',
+    this.faceVerified = 'Face verified successfully.',
+    this.verificationUnsuccessful = 'Verification was unsuccessful.',
+    this.tryAgain = 'Try again',
+  });
+
+  final String oneFaceRequired;
+  final String faceNotDetected;
+  final String faceTooDark;
+  final String faceTooBright;
+  final String keepFacingCamera;
+  final String keepFaceStable;
+  final String blinkNotDetected;
+  final String faceDirectionUnavailable;
+  final String eyesNotVisible;
+  final String openEyes;
+  final String differentFace;
+  final String moveCloser;
+  final String moveFarther;
+  final String moveRight;
+  final String moveLeft;
+  final String moveDown;
+  final String moveUp;
+  final String spoofingDetected;
+  final String alignFace;
+  final String blink;
+  final String reopenEyes;
+  final String returnToCamera;
+  final String turnHead;
+  final String verificationComplete;
+  final String verificationFailed;
+  final String frontCameraUnavailable;
+  final String close;
+  final String preparingCamera;
+  final String cameraPermissionHelp;
+  final String pleaseWait;
+  final String positionFaceInFrame;
+  final String holdStill;
+  final String moveSlowly;
+  final String faceVerified;
+  final String verificationUnsuccessful;
+  final String tryAgain;
+}
+
 /// Settings that control an on-device liveness session.
 class LivenessConfiguration {
   /// Creates configuration for a liveness session.
@@ -21,14 +103,9 @@ class LivenessConfiguration {
     this.maxFrames = 180,
     this.passiveThreshold = .5,
     this.faceIdentityThreshold = .22,
-  }) : assert(
-         passiveThreshold >= 0 && passiveThreshold <= 1,
-         'passiveThreshold must be between 0 and 1',
-       ),
-       assert(
-         faceIdentityThreshold > 0,
-         'faceIdentityThreshold must be greater than 0',
-       );
+    this.messages = const LivenessMessages(),
+  }) : assert(passiveThreshold >= 0 && passiveThreshold <= 1, 'passiveThreshold must be between 0 and 1'),
+       assert(faceIdentityThreshold > 0, 'faceIdentityThreshold must be greater than 0');
 
   /// Checks enabled for this session.
   ///
@@ -50,17 +127,15 @@ class LivenessConfiguration {
   /// Identity continuity is evaluated only while the face is frontal. Two
   /// consecutive mismatches are required to avoid resets caused by noise.
   final double faceIdentityThreshold;
+
+  /// User-facing copy used by the challenge and the ready-to-use screen.
+  final LivenessMessages messages;
 }
 
 class LivenessChallenge {
-  LivenessChallenge([this.configuration = const LivenessConfiguration()])
-    : _started = DateTime.now() {
+  LivenessChallenge([this.configuration = const LivenessConfiguration()]) : _started = DateTime.now() {
     if (configuration.validations.isEmpty) {
-      throw ArgumentError.value(
-        configuration.validations,
-        'validations',
-        'At least one validation is required',
-      );
+      throw ArgumentError.value(configuration.validations, 'validations', 'At least one validation is required');
     }
   }
   final LivenessConfiguration configuration;
@@ -68,12 +143,7 @@ class LivenessChallenge {
   LivenessStatus status = LivenessStatus.align;
   int frames = 0, aligned = 0, turned = 0, returned = 0;
   double? baseX, baseY, baseW, baseH, baseYaw;
-  DateTime? blinkStartedAt,
-      closedAt,
-      unstableSince,
-      eyesMissingSince,
-      faceMissingSince,
-      qualityIssueSince;
+  DateTime? blinkStartedAt, closedAt, unstableSince, eyesMissingSince, faceMissingSince, qualityIssueSince;
   String? qualityIssue;
   final List<double> scores = [];
   List<double>? faceIdentity;
@@ -82,35 +152,27 @@ class LivenessChallenge {
   static const _inputGracePeriod = Duration(milliseconds: 750);
   static const _eyesGracePeriod = Duration(milliseconds: 500);
 
-  bool _uses(LivenessValidation validation) =>
-      configuration.validations.contains(validation);
+  bool _uses(LivenessValidation validation) => configuration.validations.contains(validation);
 
   LivenessResult advance(LivenessObservation o) {
     final now = DateTime.now();
-    if (++frames > configuration.maxFrames ||
-        now.difference(_started) > configuration.timeout) {
+    if (++frames > configuration.maxFrames || now.difference(_started) > configuration.timeout) {
       status = LivenessStatus.failed;
       return result();
     }
     if (o.faceCount != 1) {
       faceMissingSince ??= now;
-      const message = 'Pastikan tepat satu wajah terlihat dan hadap kamera';
+      final message = configuration.messages.oneFaceRequired;
       return now.difference(faceMissingSince!) >= const Duration(seconds: 2)
-          ? _reset('Wajah tidak terdeteksi. Verifikasi dimulai kembali.')
+          ? _reset(configuration.messages.faceNotDetected)
           : result(message);
     }
     faceMissingSince = null;
     if (o.lighting == 'dark') {
-      return _handleInputIssue(
-        now,
-        'Wajah terlalu gelap, pindah ke tempat yang lebih terang',
-      );
+      return _handleInputIssue(now, configuration.messages.faceTooDark);
     }
     if (o.lighting == 'bright') {
-      return _handleInputIssue(
-        now,
-        'Wajah terlalu terang, hindari cahaya langsung',
-      );
+      return _handleInputIssue(now, configuration.messages.faceTooBright);
     }
     qualityIssueSince = null;
     qualityIssue = null;
@@ -118,10 +180,10 @@ class LivenessChallenge {
     final identityReset = _verifyFaceIdentity(o, guidance);
     if (identityReset != null) return identityReset;
     if (!o.eyesDetected) {
-      if (!_isActiveChallenge) return result(_eyes);
+      if (!_isActiveChallenge) return result(configuration.messages.eyesNotVisible);
       eyesMissingSince ??= now;
       return now.difference(eyesMissingSince!) >= _eyesGracePeriod
-          ? result(_eyes)
+          ? result(configuration.messages.eyesNotVisible)
           : result();
     }
     eyesMissingSince = null;
@@ -135,41 +197,37 @@ class LivenessChallenge {
     if (status == LivenessStatus.align) {
       if (guidance != null || !o.eyesOpen) {
         aligned = 0;
-        return result(guidance ?? _openEyes);
+        return result(guidance ?? configuration.messages.openEyes);
       }
       if (++aligned >= 2) status = LivenessStatus.open;
     } else if (status == LivenessStatus.open) {
       if (guidance != null) return _reset(guidance);
-      if (!o.eyesOpen) return result(_openEyes);
+      if (!o.eyesOpen) return result(configuration.messages.openEyes);
       baseX = o.faceCenterX;
       baseY = o.faceCenterY;
       baseW = o.faceWidth;
       baseH = o.faceHeight;
       if (_uses(LivenessValidation.blink)) {
         _beginBlink(now);
-      } else if (_uses(LivenessValidation.passiveAntiSpoof) &&
-          scores.length < 5) {
-        return result('Tetap hadapkan wajah ke kamera');
+      } else if (_uses(LivenessValidation.passiveAntiSpoof) && scores.length < 5) {
+        return result(configuration.messages.keepFacingCamera);
       } else if (_uses(LivenessValidation.headTurn)) {
         status = LivenessStatus.move;
       } else {
         return _finish();
       }
-    } else if ((status == LivenessStatus.blink ||
-            status == LivenessStatus.reopen) &&
-        !_stable(o)) {
+    } else if ((status == LivenessStatus.blink || status == LivenessStatus.reopen) && !_stable(o)) {
       unstableSince ??= now;
       return now.difference(unstableSince!) >= _inputGracePeriod
-          ? result('Jaga wajah tetap pada jarak dan tinggi yang sama')
+          ? result(configuration.messages.keepFaceStable)
           : result();
     } else if (status == LivenessStatus.blink) {
       unstableSince = null;
       if (!o.eyesOpen) {
         closedAt = now;
         status = LivenessStatus.reopen;
-      } else if (now.difference(blinkStartedAt!) >=
-          const Duration(seconds: 5)) {
-        return result('Kedipan belum terdeteksi. Coba kedip sekali lagi.');
+      } else if (now.difference(blinkStartedAt!) >= const Duration(seconds: 5)) {
+        return result(configuration.messages.blinkNotDetected);
       } else {
         _adaptBaseline(o);
       }
@@ -188,16 +246,14 @@ class LivenessChallenge {
       }
     } else if (status == LivenessStatus.move) {
       if (o.yaw == null) {
-        return result('Hadapkan wajah ke kamera agar arah wajah terbaca');
+        return result(configuration.messages.faceDirectionUnavailable);
       }
       baseYaw ??= o.yaw;
       final delta = (o.yaw! - baseYaw!).abs();
       if (turned < 2) {
         turned = delta >= 15 ? turned + 1 : 0;
       } else {
-        returned = delta <= 8 && o.eyesOpen && guidance == null
-            ? returned + 1
-            : 0;
+        returned = delta <= 8 && o.eyesOpen && guidance == null ? returned + 1 : 0;
         if (returned >= 2) {
           return _finish();
         }
@@ -206,21 +262,9 @@ class LivenessChallenge {
     return result();
   }
 
-  static const _eyes =
-      'Mata belum terlihat jelas. Hadap kamera dan pastikan area mata tidak tertutup.';
-  static const _openEyes = 'Buka kedua mata dan lihat ke arah kamera.';
-  static const _differentFace =
-      'Wajah berbeda terdeteksi. Verifikasi dimulai kembali.';
-
-  LivenessResult? _verifyFaceIdentity(
-    LivenessObservation observation,
-    String? guidance,
-  ) {
+  LivenessResult? _verifyFaceIdentity(LivenessObservation observation, String? guidance) {
     final identity = observation.faceIdentity;
-    final isFrontal =
-        guidance == null &&
-        observation.eyesDetected &&
-        (observation.yaw?.abs() ?? 0) <= 10;
+    final isFrontal = guidance == null && observation.eyesDetected && (observation.yaw?.abs() ?? 0) <= 10;
     if (identity == null || identity.isEmpty || !isFrontal) return null;
 
     final baseline = faceIdentity;
@@ -238,7 +282,9 @@ class LivenessChallenge {
     final distance = math.sqrt(squaredDistance / baseline.length);
     if (distance > configuration.faceIdentityThreshold) {
       identityMismatches++;
-      if (identityMismatches >= 2) return _reset(_differentFace);
+      if (identityMismatches >= 2) {
+        return _reset(configuration.messages.differentFace);
+      }
       return null;
     }
 
@@ -253,9 +299,7 @@ class LivenessChallenge {
   }
 
   bool get _isActiveChallenge =>
-      status == LivenessStatus.blink ||
-      status == LivenessStatus.reopen ||
-      status == LivenessStatus.move;
+      status == LivenessStatus.blink || status == LivenessStatus.reopen || status == LivenessStatus.move;
 
   LivenessResult _handleInputIssue(DateTime now, String message) {
     if (!_isActiveChallenge) return _reset(message);
@@ -263,9 +307,7 @@ class LivenessChallenge {
       qualityIssue = message;
       qualityIssueSince = now;
     }
-    return now.difference(qualityIssueSince!) >= _inputGracePeriod
-        ? result(message)
-        : result();
+    return now.difference(qualityIssueSince!) >= _inputGracePeriod ? result(message) : result();
   }
 
   void _beginBlink(DateTime now) {
@@ -290,15 +332,15 @@ class LivenessChallenge {
       (o.faceHeight - baseH!).abs() <= .10;
   String? _alignment(LivenessObservation o) {
     if (o.faceWidth < .20 || o.faceHeight < .25) {
-      return 'Dekatkan wajah ke kamera';
+      return configuration.messages.moveCloser;
     }
     if (o.faceWidth > .70 || o.faceHeight > .75) {
-      return 'Jauhkan wajah dari kamera';
+      return configuration.messages.moveFarther;
     }
-    if (o.faceCenterX < .40) return 'Geser wajah ke kanan';
-    if (o.faceCenterX > .60) return 'Geser wajah ke kiri';
-    if (o.faceCenterY < .38) return 'Geser wajah ke bawah';
-    if (o.faceCenterY > .62) return 'Geser wajah ke atas';
+    if (o.faceCenterX < .40) return configuration.messages.moveRight;
+    if (o.faceCenterX > .60) return configuration.messages.moveLeft;
+    if (o.faceCenterY < .38) return configuration.messages.moveDown;
+    if (o.faceCenterY > .62) return configuration.messages.moveUp;
     return null;
   }
 
@@ -306,8 +348,7 @@ class LivenessChallenge {
     status = LivenessStatus.align;
     aligned = turned = returned = 0;
     baseX = baseY = baseW = baseH = baseYaw = null;
-    blinkStartedAt = closedAt = unstableSince = eyesMissingSince =
-        faceMissingSince = null;
+    blinkStartedAt = closedAt = unstableSince = eyesMissingSince = faceMissingSince = null;
     qualityIssueSince = null;
     qualityIssue = null;
     scores.clear();
@@ -320,9 +361,7 @@ class LivenessChallenge {
     if (values.isEmpty) return 0;
     final sorted = [...values]..sort();
     final middle = sorted.length ~/ 2;
-    return sorted.length.isOdd
-        ? sorted[middle]
-        : (sorted[middle - 1] + sorted[middle]) / 2;
+    return sorted.length.isOdd ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
   }
 
   LivenessResult _finish() {
@@ -334,11 +373,7 @@ class LivenessChallenge {
     status = scores.length >= 5 && score >= configuration.passiveThreshold
         ? LivenessStatus.passed
         : LivenessStatus.failed;
-    return result(
-      status == LivenessStatus.failed
-          ? 'Verifikasi gagal, terdeteksi spoofing'
-          : null,
-    );
+    return result(status == LivenessStatus.failed ? configuration.messages.spoofingDetected : null);
   }
 
   LivenessResult result([String? message]) => LivenessResult(
@@ -348,16 +383,12 @@ class LivenessChallenge {
     instruction:
         message ??
         switch (status) {
-          LivenessStatus.align || LivenessStatus.open =>
-            'Hadapkan wajah ke kamera dan pastikan kedua mata terlihat jelas.',
-          LivenessStatus.blink => 'Kedipkan kedua mata sekali.',
-          LivenessStatus.reopen => 'Buka kembali kedua mata',
-          LivenessStatus.move =>
-            turned >= 2
-                ? 'Kembali menghadap kamera'
-                : 'Menoleh sedikit ke kiri atau kanan',
-          LivenessStatus.passed => 'Verifikasi selesai',
-          LivenessStatus.failed => 'Verifikasi gagal',
+          LivenessStatus.align || LivenessStatus.open => configuration.messages.alignFace,
+          LivenessStatus.blink => configuration.messages.blink,
+          LivenessStatus.reopen => configuration.messages.reopenEyes,
+          LivenessStatus.move => turned >= 2 ? configuration.messages.returnToCamera : configuration.messages.turnHead,
+          LivenessStatus.passed => configuration.messages.verificationComplete,
+          LivenessStatus.failed => configuration.messages.verificationFailed,
         },
   );
 }

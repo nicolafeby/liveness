@@ -110,6 +110,20 @@ On success, `result.imageBytes` contains the verified JPEG and
 `result.passiveScore` contains the median passive anti-spoof score. The package
 does not upload or persist either value.
 
+All user-facing text defaults to English. Override any message through the
+configuration to localize the flow or use your own product copy:
+
+```dart
+const LivenessConfiguration(
+  messages: LivenessMessages(
+    moveRight: 'Geser wajah ke kanan',
+    moveLeft: 'Geser wajah ke kiri',
+    blink: 'Kedipkan kedua mata sekali.',
+    tryAgain: 'Coba lagi',
+  ),
+);
+```
+
 ### Configuration
 
 | Property | Default | Description |
@@ -119,6 +133,7 @@ does not upload or persist either value.
 | `maxFrames` | 180 | Maximum analyzed frames before failure. |
 | `passiveThreshold` | 0.5 | Minimum median passive score required to pass. |
 | `faceIdentityThreshold` | 0.22 | Maximum normalized landmark distance considered the same face. |
+| `messages` | English `LivenessMessages` | User-facing challenge instructions and screen labels. Override individual values to localize the flow. |
 
 Treat the default threshold as a starting point. Calibrate it using genuine
 users, target devices, lighting conditions, and representative attacks.

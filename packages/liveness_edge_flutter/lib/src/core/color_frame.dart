@@ -22,7 +22,7 @@ Uint8List encodeColorFrame(
       frame.width < 100 ||
       frame.height < 100) {
     throw const FormatException(
-      'Ukuran atau orientasi frame kamera tidak valid',
+      'The camera frame size or orientation is invalid.',
     );
   }
   if (frame.format.group == ImageFormatGroup.bgra8888) {
@@ -30,12 +30,12 @@ Uint8List encodeColorFrame(
   }
   if (frame.format.group != ImageFormatGroup.yuv420 &&
       frame.format.group != ImageFormatGroup.nv21) {
-    throw const FormatException('Format frame kamera tidak didukung');
+    throw const FormatException('The camera frame format is not supported.');
   }
   final interleaved = frame.planes.length == 2;
   final nv21 = frame.format.group == ImageFormatGroup.nv21;
   if (frame.planes.length < 2) {
-    throw const FormatException('Data warna kamera tidak lengkap');
+    throw const FormatException('The camera color data is incomplete.');
   }
   final yPlane = frame.planes[0];
   final uPlane = frame.planes[1];
@@ -47,7 +47,9 @@ Uint8List encodeColorFrame(
   final width = rotation == 90 || rotation == 270 ? sourceHeight : sourceWidth;
   final height = rotation == 90 || rotation == 270 ? sourceWidth : sourceHeight;
   if (width < 100 || height < 100 || width > 65535 || height > 65535) {
-    throw const FormatException('Resolusi frame kamera tidak didukung');
+    throw const FormatException(
+      'The camera frame resolution is not supported.',
+    );
   }
   final output = Uint8List(8 + width * height * 3);
   output.setRange(0, 4, [76, 86, 67, 49]); // LVC1
@@ -73,7 +75,7 @@ Uint8List encodeColorFrame(
       if (yIndex >= yPlane.bytes.length ||
           uIndex >= uPlane.bytes.length ||
           vIndex >= vPlane.bytes.length) {
-        throw const FormatException('Data warna kamera tidak lengkap');
+        throw const FormatException('The camera color data is incomplete.');
       }
       final yy = math.max(0, yPlane.bytes[yIndex] - 16);
       final u = uPlane.bytes[uIndex] - 128;
@@ -99,12 +101,12 @@ Uint8List encodeColorFrame(
 
 Uint8List _encodeBgraFrame(CameraImage frame, int rotation) {
   if (frame.planes.length != 1) {
-    throw const FormatException('Data warna kamera tidak lengkap');
+    throw const FormatException('The camera color data is incomplete.');
   }
   final plane = frame.planes.single;
   final pixelStride = plane.bytesPerPixel ?? 4;
   if (pixelStride < 4) {
-    throw const FormatException('Format piksel kamera tidak didukung');
+    throw const FormatException('The camera pixel format is not supported.');
   }
   final step = (math.max(frame.width, frame.height) / streamedFrameMaxDimension)
       .ceil();
@@ -122,7 +124,7 @@ Uint8List _encodeBgraFrame(CameraImage frame, int rotation) {
     for (var x = 0; x < sourceWidth; x++) {
       final offset = y * step * plane.bytesPerRow + x * step * pixelStride;
       if (offset + 2 >= plane.bytes.length) {
-        throw const FormatException('Data warna kamera tidak lengkap');
+        throw const FormatException('The camera color data is incomplete.');
       }
       final destination = switch (rotation) {
         90 => x * width + (width - 1 - y),
@@ -149,12 +151,12 @@ Uint8List encodeResultImage(Uint8List frame) {
       frame[1] != 86 ||
       frame[2] != 67 ||
       frame[3] != 49) {
-    throw const FormatException('Frame hasil liveness tidak valid');
+    throw const FormatException('The liveness result frame is invalid.');
   }
   final width = frame[4] << 8 | frame[5];
   final height = frame[6] << 8 | frame[7];
   if (width < 1 || height < 1 || frame.length != 8 + width * height * 3) {
-    throw const FormatException('Ukuran frame hasil liveness tidak valid');
+    throw const FormatException('The liveness result frame size is invalid.');
   }
 
   final source = img.Image(width: width, height: height);
