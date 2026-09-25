@@ -39,7 +39,7 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
             { post { result.success(null) } }, { post { result.error("initialize_failed", it.message, null) } }) }
         "analyze" -> {
             val bytes = call.arguments as? ByteArray
-            if (bytes == null) result.error("invalid_frame", "Frame harus berupa byte array", null)
+            if (bytes == null) result.error("invalid_frame", "The frame must be a byte array", null)
             else executor.execute { runCatching { analyze(bytes) }.fold(
                 { value -> post { result.success(value) } },
                 { error -> post { result.error("analysis_failed", error.message, null) } }) }
@@ -61,10 +61,10 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
 
     private fun analyze(data: ByteArray): Map<String, Any?> {
         initialize()
-        require(data.size >= 8 && String(data, 0, 4) == "LVC1") { "Format frame tidak valid" }
+        require(data.size >= 8 && String(data, 0, 4) == "LVC1") { "Invalid frame format" }
         val width = ((data[4].toInt() and 255) shl 8) or (data[5].toInt() and 255)
         val height = ((data[6].toInt() and 255) shl 8) or (data[7].toInt() and 255)
-        require(data.size == 8 + width * height * 3) { "Ukuran frame tidak valid" }
+        require(data.size == 8 + width * height * 3) { "Invalid frame dimensions" }
         val pixels = IntArray(width * height); var p = 8
         for (i in pixels.indices) { val b=data[p++].toInt()and 255; val g=data[p++].toInt()and 255; val r=data[p++].toInt()and 255; pixels[i]=-0x1000000 or(r shl 16)or(g shl 8)or b }
         val bitmap = Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
@@ -86,7 +86,15 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
         val left=points[33];val right=points[263];val dx=right.x()-left.x();val dy=right.y()-left.y()
         val scale=sqrt(dx*dx+dy*dy).coerceAtLeast(.0001f);val angle=atan2(dy,dx);val c=cos(angle);val s=sin(angle)
         val cx=(left.x()+right.x())/2;val cy=(left.y()+right.y())/2
-        val indices=intArrayOf(10,152,33,263,133,362,1,61,291,234,454,168)
+        // Use rigid face regions across the contour, eyes, brows, and nose.
+        // Mouth landmarks are intentionally excluded because a blink challenge
+        // should not fail merely because the user changes expression.
+        val indices=intArrayOf(
+            10, 152, 127, 356, 234, 454, 93, 323, 132, 361,
+            33, 133, 159, 145, 263, 362, 386, 374,
+            70, 105, 107, 336, 334, 300,
+            1, 2, 4, 5, 168, 197, 195, 6
+        )
         return indices.flatMap { index -> val point=points[index];val x=point.x()-cx;val y=point.y()-cy
             listOf(((x*c+y*s)/scale).toDouble(),((-x*s+y*c)/scale).toDouble()) }
     }

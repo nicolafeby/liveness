@@ -5,23 +5,71 @@ import '../models/liveness_status.dart';
 import '../models/liveness_validation.dart';
 import '../models/observation.dart';
 
+/// Sensitivity for the passive anti-spoof check.
+///
+/// Use a built-in preset or [PassiveAntiSpoofSensitivity.withValue] for a
+/// calibrated threshold. Higher values require a higher live score.
+final class PassiveAntiSpoofSensitivity {
+  const PassiveAntiSpoofSensitivity._(this.threshold);
+
+  const PassiveAntiSpoofSensitivity.withValue(this.threshold)
+    : assert(
+        threshold >= 0 && threshold <= 1,
+        'Passive anti-spoof threshold must be between 0 and 1',
+      );
+
+  static const low = PassiveAntiSpoofSensitivity._(.40);
+  static const balanced = PassiveAntiSpoofSensitivity._(.50);
+  static const high = PassiveAntiSpoofSensitivity._(.60);
+  static const strict = PassiveAntiSpoofSensitivity._(.70);
+
+  final double threshold;
+}
+
+/// Sensitivity for detecting a face replacement during one session.
+///
+/// Use a built-in preset or [FaceIdentitySensitivity.withValue] for a
+/// calibrated threshold. Smaller values detect smaller landmark differences.
+final class FaceIdentitySensitivity {
+  const FaceIdentitySensitivity._(this.threshold);
+
+  const FaceIdentitySensitivity.withValue(this.threshold)
+    : assert(threshold > 0, 'Face identity threshold must be greater than 0');
+
+  static const low = FaceIdentitySensitivity._(.16);
+  static const balanced = FaceIdentitySensitivity._(.10);
+  static const high = FaceIdentitySensitivity._(.06);
+  static const strict = FaceIdentitySensitivity._(.035);
+
+  final double threshold;
+}
+
 /// User-facing text shown during a liveness session.
 ///
 /// All values default to English. Override only the values needed to localize
 /// the experience or match your product's tone of voice.
 class LivenessMessages {
   const LivenessMessages({
-    this.oneFaceRequired = 'Make sure exactly one face is visible and look at the camera.',
-    this.faceNotDetected = 'Face not detected. Verification has been restarted.',
+    this.oneFaceRequired =
+        'Make sure exactly one face is visible and look at the camera.',
+    this.faceNotDetected =
+        'Face not detected. Verification has been restarted.',
+    this.faceContinuityLost =
+        'Face continuity was lost. Verification has been restarted.',
     this.faceTooDark = 'Your face is too dark. Move to a brighter place.',
     this.faceTooBright = 'Your face is too bright. Avoid direct light.',
     this.keepFacingCamera = 'Keep facing the camera.',
     this.keepFaceStable = 'Keep your face at the same distance and height.',
     this.blinkNotDetected = 'Blink not detected. Try blinking once more.',
-    this.faceDirectionUnavailable = 'Face the camera so your face direction can be detected.',
-    this.eyesNotVisible = 'Your eyes are not clearly visible. Face the camera and make sure they are not covered.',
+    this.faceDirectionUnavailable =
+        'Face the camera so your face direction can be detected.',
+    this.eyesNotVisible =
+        'Your eyes are not clearly visible. Face the camera and make sure they are not covered.',
     this.openEyes = 'Open both eyes and look at the camera.',
-    this.differentFace = 'A different face was detected. Verification has been restarted.',
+    this.differentFace =
+        'A different face was detected. Verification has been restarted.',
+    this.verifyingSameFace =
+        'Keep facing the camera while we verify the same face.',
     this.moveCloser = 'Move closer to the camera.',
     this.moveFarther = 'Move farther from the camera.',
     this.moveRight = 'Move your face to the right.',
@@ -29,7 +77,8 @@ class LivenessMessages {
     this.moveDown = 'Move your face down.',
     this.moveUp = 'Move your face up.',
     this.spoofingDetected = 'Verification failed. Spoofing was detected.',
-    this.alignFace = 'Face the camera and make sure both eyes are clearly visible.',
+    this.alignFace =
+        'Face the camera and make sure both eyes are clearly visible.',
     this.blink = 'Blink both eyes once.',
     this.reopenEyes = 'Open both eyes again.',
     this.returnToCamera = 'Face the camera again.',
@@ -39,7 +88,8 @@ class LivenessMessages {
     this.frontCameraUnavailable = 'Front camera is not available.',
     this.close = 'Close',
     this.preparingCamera = 'Preparing camera…',
-    this.cameraPermissionHelp = 'Make sure camera permission is enabled, then try again.',
+    this.cameraPermissionHelp =
+        'Make sure camera permission is enabled, then try again.',
     this.pleaseWait = 'Please wait a moment.',
     this.positionFaceInFrame = 'Position your entire face inside the frame.',
     this.holdStill = 'Keep your face still.',
@@ -51,6 +101,7 @@ class LivenessMessages {
 
   final String oneFaceRequired;
   final String faceNotDetected;
+  final String faceContinuityLost;
   final String faceTooDark;
   final String faceTooBright;
   final String keepFacingCamera;
@@ -60,6 +111,7 @@ class LivenessMessages {
   final String eyesNotVisible;
   final String openEyes;
   final String differentFace;
+  final String verifyingSameFace;
   final String moveCloser;
   final String moveFarther;
   final String moveRight;
@@ -91,8 +143,7 @@ class LivenessMessages {
 class LivenessConfiguration {
   /// Creates configuration for a liveness session.
   ///
-  /// [passiveThreshold] is expected to be between `0` and `1`. Calibrate it
-  /// with data representative of the devices and attacks in your environment.
+  /// Calibrate sensitivity with representative devices and attacks.
   const LivenessConfiguration({
     this.validations = const {
       LivenessValidation.blink,
@@ -101,11 +152,10 @@ class LivenessConfiguration {
     },
     this.timeout = const Duration(minutes: 2),
     this.maxFrames = 180,
-    this.passiveThreshold = .5,
-    this.faceIdentityThreshold = .22,
+    this.passiveAntiSpoofSensitivity = PassiveAntiSpoofSensitivity.balanced,
+    this.faceIdentitySensitivity = FaceIdentitySensitivity.balanced,
     this.messages = const LivenessMessages(),
-  }) : assert(passiveThreshold >= 0 && passiveThreshold <= 1, 'passiveThreshold must be between 0 and 1'),
-       assert(faceIdentityThreshold > 0, 'faceIdentityThreshold must be greater than 0');
+  });
 
   /// Checks enabled for this session.
   ///
@@ -119,23 +169,33 @@ class LivenessConfiguration {
   /// Maximum number of camera frames analyzed before the session fails.
   final int maxFrames;
 
-  /// Minimum median passive anti-spoof score required to pass.
-  final double passiveThreshold;
+  /// Passive anti-spoof sensitivity preset or custom value.
+  final PassiveAntiSpoofSensitivity passiveAntiSpoofSensitivity;
+
+  double get passiveThreshold => passiveAntiSpoofSensitivity.threshold;
+
+  /// Face identity sensitivity preset or custom value.
+  final FaceIdentitySensitivity faceIdentitySensitivity;
 
   /// Maximum normalized landmark distance still considered the same face.
   ///
   /// Identity continuity is evaluated only while the face is frontal. Two
   /// consecutive mismatches are required to avoid resets caused by noise.
-  final double faceIdentityThreshold;
+  double get faceIdentityThreshold => faceIdentitySensitivity.threshold;
 
   /// User-facing copy used by the challenge and the ready-to-use screen.
   final LivenessMessages messages;
 }
 
 class LivenessChallenge {
-  LivenessChallenge([this.configuration = const LivenessConfiguration()]) : _started = DateTime.now() {
+  LivenessChallenge([this.configuration = const LivenessConfiguration()])
+    : _started = DateTime.now() {
     if (configuration.validations.isEmpty) {
-      throw ArgumentError.value(configuration.validations, 'validations', 'At least one validation is required');
+      throw ArgumentError.value(
+        configuration.validations,
+        'validations',
+        'At least one validation is required',
+      );
     }
   }
   final LivenessConfiguration configuration;
@@ -143,7 +203,12 @@ class LivenessChallenge {
   LivenessStatus status = LivenessStatus.align;
   int frames = 0, aligned = 0, turned = 0, returned = 0;
   double? baseX, baseY, baseW, baseH, baseYaw;
-  DateTime? blinkStartedAt, closedAt, unstableSince, eyesMissingSince, faceMissingSince, qualityIssueSince;
+  DateTime? blinkStartedAt,
+      closedAt,
+      unstableSince,
+      eyesMissingSince,
+      faceMissingSince,
+      qualityIssueSince;
   String? qualityIssue;
   final List<double> scores = [];
   List<double>? faceIdentity;
@@ -151,20 +216,32 @@ class LivenessChallenge {
 
   static const _inputGracePeriod = Duration(milliseconds: 750);
   static const _eyesGracePeriod = Duration(milliseconds: 500);
+  static const _activeFaceLossGracePeriod = Duration(milliseconds: 400);
+  static const _idleFaceLossGracePeriod = Duration(seconds: 2);
 
-  bool _uses(LivenessValidation validation) => configuration.validations.contains(validation);
+  bool _uses(LivenessValidation validation) =>
+      configuration.validations.contains(validation);
 
   LivenessResult advance(LivenessObservation o) {
     final now = DateTime.now();
-    if (++frames > configuration.maxFrames || now.difference(_started) > configuration.timeout) {
+    if (++frames > configuration.maxFrames ||
+        now.difference(_started) > configuration.timeout) {
       status = LivenessStatus.failed;
       return result();
     }
     if (o.faceCount != 1) {
       faceMissingSince ??= now;
       final message = configuration.messages.oneFaceRequired;
-      return now.difference(faceMissingSince!) >= const Duration(seconds: 2)
-          ? _reset(configuration.messages.faceNotDetected)
+      final isActive = _isActiveChallenge;
+      final gracePeriod = isActive
+          ? _activeFaceLossGracePeriod
+          : _idleFaceLossGracePeriod;
+      return now.difference(faceMissingSince!) >= gracePeriod
+          ? _reset(
+              isActive
+                  ? configuration.messages.faceContinuityLost
+                  : configuration.messages.faceNotDetected,
+            )
           : result(message);
     }
     faceMissingSince = null;
@@ -180,7 +257,9 @@ class LivenessChallenge {
     final identityReset = _verifyFaceIdentity(o, guidance);
     if (identityReset != null) return identityReset;
     if (!o.eyesDetected) {
-      if (!_isActiveChallenge) return result(configuration.messages.eyesNotVisible);
+      if (!_isActiveChallenge) {
+        return result(configuration.messages.eyesNotVisible);
+      }
       eyesMissingSince ??= now;
       return now.difference(eyesMissingSince!) >= _eyesGracePeriod
           ? result(configuration.messages.eyesNotVisible)
@@ -209,14 +288,17 @@ class LivenessChallenge {
       baseH = o.faceHeight;
       if (_uses(LivenessValidation.blink)) {
         _beginBlink(now);
-      } else if (_uses(LivenessValidation.passiveAntiSpoof) && scores.length < 5) {
+      } else if (_uses(LivenessValidation.passiveAntiSpoof) &&
+          scores.length < 5) {
         return result(configuration.messages.keepFacingCamera);
       } else if (_uses(LivenessValidation.headTurn)) {
         status = LivenessStatus.move;
       } else {
         return _finish();
       }
-    } else if ((status == LivenessStatus.blink || status == LivenessStatus.reopen) && !_stable(o)) {
+    } else if ((status == LivenessStatus.blink ||
+            status == LivenessStatus.reopen) &&
+        !_stable(o)) {
       unstableSince ??= now;
       return now.difference(unstableSince!) >= _inputGracePeriod
           ? result(configuration.messages.keepFaceStable)
@@ -226,7 +308,8 @@ class LivenessChallenge {
       if (!o.eyesOpen) {
         closedAt = now;
         status = LivenessStatus.reopen;
-      } else if (now.difference(blinkStartedAt!) >= const Duration(seconds: 5)) {
+      } else if (now.difference(blinkStartedAt!) >=
+          const Duration(seconds: 5)) {
         return result(configuration.messages.blinkNotDetected);
       } else {
         _adaptBaseline(o);
@@ -253,7 +336,9 @@ class LivenessChallenge {
       if (turned < 2) {
         turned = delta >= 15 ? turned + 1 : 0;
       } else {
-        returned = delta <= 8 && o.eyesOpen && guidance == null ? returned + 1 : 0;
+        returned = delta <= 8 && o.eyesOpen && guidance == null
+            ? returned + 1
+            : 0;
         if (returned >= 2) {
           return _finish();
         }
@@ -262,9 +347,15 @@ class LivenessChallenge {
     return result();
   }
 
-  LivenessResult? _verifyFaceIdentity(LivenessObservation observation, String? guidance) {
+  LivenessResult? _verifyFaceIdentity(
+    LivenessObservation observation,
+    String? guidance,
+  ) {
     final identity = observation.faceIdentity;
-    final isFrontal = guidance == null && observation.eyesDetected && (observation.yaw?.abs() ?? 0) <= 10;
+    final isFrontal =
+        guidance == null &&
+        observation.eyesDetected &&
+        (observation.yaw?.abs() ?? 0) <= 10;
     if (identity == null || identity.isEmpty || !isFrontal) return null;
 
     final baseline = faceIdentity;
@@ -288,18 +379,16 @@ class LivenessChallenge {
       return null;
     }
 
+    // Keep the first aligned identity frozen for the entire session so a
+    // replacement face cannot gradually become the new baseline.
     identityMismatches = 0;
-    // Slowly absorb detector jitter without allowing a new face to replace the
-    // baseline in one frame.
-    const weight = .05;
-    for (var i = 0; i < baseline.length; i++) {
-      baseline[i] = baseline[i] * (1 - weight) + identity[i] * weight;
-    }
     return null;
   }
 
   bool get _isActiveChallenge =>
-      status == LivenessStatus.blink || status == LivenessStatus.reopen || status == LivenessStatus.move;
+      status == LivenessStatus.blink ||
+      status == LivenessStatus.reopen ||
+      status == LivenessStatus.move;
 
   LivenessResult _handleInputIssue(DateTime now, String message) {
     if (!_isActiveChallenge) return _reset(message);
@@ -307,7 +396,9 @@ class LivenessChallenge {
       qualityIssue = message;
       qualityIssueSince = now;
     }
-    return now.difference(qualityIssueSince!) >= _inputGracePeriod ? result(message) : result();
+    return now.difference(qualityIssueSince!) >= _inputGracePeriod
+        ? result(message)
+        : result();
   }
 
   void _beginBlink(DateTime now) {
@@ -348,7 +439,8 @@ class LivenessChallenge {
     status = LivenessStatus.align;
     aligned = turned = returned = 0;
     baseX = baseY = baseW = baseH = baseYaw = null;
-    blinkStartedAt = closedAt = unstableSince = eyesMissingSince = faceMissingSince = null;
+    blinkStartedAt = closedAt = unstableSince = eyesMissingSince =
+        faceMissingSince = null;
     qualityIssueSince = null;
     qualityIssue = null;
     scores.clear();
@@ -361,10 +453,17 @@ class LivenessChallenge {
     if (values.isEmpty) return 0;
     final sorted = [...values]..sort();
     final middle = sorted.length ~/ 2;
-    return sorted.length.isOdd ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+    return sorted.length.isOdd
+        ? sorted[middle]
+        : (sorted[middle - 1] + sorted[middle]) / 2;
   }
 
   LivenessResult _finish() {
+    // Never pass on the first mismatching frame. A matching frame clears the
+    // pending mismatch; a second mismatch resets the challenge.
+    if (identityMismatches > 0) {
+      return result(configuration.messages.verifyingSameFace);
+    }
     if (!_uses(LivenessValidation.passiveAntiSpoof)) {
       status = LivenessStatus.passed;
       return result();
@@ -373,7 +472,11 @@ class LivenessChallenge {
     status = scores.length >= 5 && score >= configuration.passiveThreshold
         ? LivenessStatus.passed
         : LivenessStatus.failed;
-    return result(status == LivenessStatus.failed ? configuration.messages.spoofingDetected : null);
+    return result(
+      status == LivenessStatus.failed
+          ? configuration.messages.spoofingDetected
+          : null,
+    );
   }
 
   LivenessResult result([String? message]) => LivenessResult(
@@ -383,10 +486,14 @@ class LivenessChallenge {
     instruction:
         message ??
         switch (status) {
-          LivenessStatus.align || LivenessStatus.open => configuration.messages.alignFace,
+          LivenessStatus.align ||
+          LivenessStatus.open => configuration.messages.alignFace,
           LivenessStatus.blink => configuration.messages.blink,
           LivenessStatus.reopen => configuration.messages.reopenEyes,
-          LivenessStatus.move => turned >= 2 ? configuration.messages.returnToCamera : configuration.messages.turnHead,
+          LivenessStatus.move =>
+            turned >= 2
+                ? configuration.messages.returnToCamera
+                : configuration.messages.turnHead,
           LivenessStatus.passed => configuration.messages.verificationComplete,
           LivenessStatus.failed => configuration.messages.verificationFailed,
         },

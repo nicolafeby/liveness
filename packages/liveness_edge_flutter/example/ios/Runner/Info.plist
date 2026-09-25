@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Kamera digunakan untuk memverifikasi bahwa pengguna hadir secara langsung.</string>
+	<string>The camera is used to verify that the user is physically present.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

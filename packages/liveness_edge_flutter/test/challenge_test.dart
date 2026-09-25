@@ -176,7 +176,7 @@ void main() {
     expect(result.instruction, contains('exactly one face'));
   });
 
-  test('restarts from alignment when face is missing for two seconds', () {
+  test('restarts quickly when face is missing during an active challenge', () {
     final challenge = LivenessChallenge(
       const LivenessConfiguration(validations: {LivenessValidation.blink}),
     );
@@ -188,12 +188,12 @@ void main() {
 
     challenge.advance(const LivenessObservation(faceCount: 0));
     challenge.faceMissingSince = DateTime.now().subtract(
-      const Duration(seconds: 2),
+      const Duration(milliseconds: 400),
     );
     final reset = challenge.advance(const LivenessObservation(faceCount: 0));
 
     expect(reset.status, LivenessStatus.align);
-    expect(reset.instruction, contains('Face not detected'));
+    expect(reset.instruction, contains('continuity was lost'));
   });
 
   test('cancels face-missing timer when face returns', () {
@@ -256,6 +256,30 @@ void main() {
     );
   });
 
+  test('supports identity sensitivity presets and custom values', () {
+    const preset = LivenessConfiguration(
+      faceIdentitySensitivity: FaceIdentitySensitivity.strict,
+    );
+    const custom = LivenessConfiguration(
+      faceIdentitySensitivity: FaceIdentitySensitivity.withValue(.05),
+    );
+
+    expect(preset.faceIdentityThreshold, .035);
+    expect(custom.faceIdentityThreshold, .05);
+  });
+
+  test('supports passive sensitivity presets and custom values', () {
+    const preset = LivenessConfiguration(
+      passiveAntiSpoofSensitivity: PassiveAntiSpoofSensitivity.strict,
+    );
+    const custom = LivenessConfiguration(
+      passiveAntiSpoofSensitivity: PassiveAntiSpoofSensitivity.withValue(.34),
+    );
+
+    expect(preset.passiveThreshold, .70);
+    expect(custom.passiveThreshold, .34);
+  });
+
   test('restarts from alignment when the face identity changes', () {
     const firstFace = LivenessObservation(
       faceCount: 1,
@@ -289,6 +313,54 @@ void main() {
     expect(challenge.advance(differentFace).status, LivenessStatus.blink);
     final reset = challenge.advance(differentFace);
 
+    expect(reset.status, LivenessStatus.align);
+    expect(reset.instruction, contains('different face'));
+  });
+
+  test('does not pass blink on the first frame from a different face', () {
+    const firstFace = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+      faceIdentity: [0, 0, 0, 0],
+    );
+    const closedEyes = LivenessObservation(
+      faceCount: 1,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+      faceIdentity: [0, 0, 0, 0],
+    );
+    const replacementFace = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+      faceIdentity: [1, 1, 1, 1],
+    );
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.blink}),
+    );
+
+    challenge.advance(firstFace);
+    challenge.advance(firstFace);
+    challenge.advance(firstFace);
+    challenge.advance(closedEyes);
+
+    expect(
+      challenge.advance(replacementFace).status,
+      isNot(LivenessStatus.passed),
+    );
+    final reset = challenge.advance(replacementFace);
     expect(reset.status, LivenessStatus.align);
     expect(reset.instruction, contains('different face'));
   });

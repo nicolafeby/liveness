@@ -15,6 +15,10 @@ class ExampleHome extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (_) => LivenessEdgeScreen(
+              configuration: const LivenessConfiguration(
+                passiveAntiSpoofSensitivity: PassiveAntiSpoofSensitivity.high,
+                faceIdentitySensitivity: FaceIdentitySensitivity.strict,
+              ),
               onSuccess: (_) => Navigator.pop(context),
               onFailed: (result) => ScaffoldMessenger.of(
                 context,
