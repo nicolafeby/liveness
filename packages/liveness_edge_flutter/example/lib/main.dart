@@ -19,10 +19,13 @@ class ExampleHome extends StatelessWidget {
                 passiveAntiSpoofSensitivity: PassiveAntiSpoofSensitivity.high,
                 faceIdentitySensitivity: FaceIdentitySensitivity.strict,
               ),
+              guidelineTextStyle: const TextStyle(color: Color(0xFF243B53), fontSize: 23, fontWeight: FontWeight.w700),
+              supportingTextStyle: const TextStyle(color: Color(0xFF627D98)),
+              retryButtonBuilder: (context, label, onPressed) =>
+                  OutlinedButton.icon(onPressed: onPressed, icon: const Icon(Icons.replay_rounded), label: Text(label)),
               onSuccess: (_) => Navigator.pop(context),
-              onFailed: (result) => ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text(result.instruction))),
+              onFailed: (result) =>
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.instruction))),
             ),
           ),
         ),
