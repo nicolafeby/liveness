@@ -10,6 +10,7 @@ class LivenessObservation {
     this.lighting,
     this.yaw,
     this.liveScore,
+    this.faceIdentity,
   });
 
   final int faceCount;
@@ -22,6 +23,7 @@ class LivenessObservation {
   final String? lighting;
   final double? yaw;
   final double? liveScore;
+  final List<double>? faceIdentity;
 
   factory LivenessObservation.fromMap(Map<Object?, Object?> map) =>
       LivenessObservation(
@@ -36,5 +38,8 @@ class LivenessObservation {
         lighting: map['lighting'] as String?,
         yaw: (map['yaw'] as num?)?.toDouble(),
         liveScore: (map['liveScore'] as num?)?.toDouble(),
+        faceIdentity: (map['faceIdentity'] as List<Object?>?)
+            ?.map((value) => (value as num).toDouble())
+            .toList(growable: false),
       );
 }

@@ -88,6 +88,7 @@ Future<LivenessResult?> captureLiveness(BuildContext context) async {
           timeout: Duration(minutes: 2),
           maxFrames: 180,
           passiveThreshold: 0.5,
+          faceIdentityThreshold: 0.22,
         ),
         onSuccess: (result) {
           verifiedResult = result;
@@ -117,12 +118,21 @@ does not upload or persist either value.
 | `timeout` | 2 minutes | Maximum session duration. |
 | `maxFrames` | 180 | Maximum analyzed frames before failure. |
 | `passiveThreshold` | 0.5 | Minimum median passive score required to pass. |
+| `faceIdentityThreshold` | 0.22 | Maximum normalized landmark distance considered the same face. |
 
 Treat the default threshold as a starting point. Calibrate it using genuine
 users, target devices, lighting conditions, and representative attacks.
 At least one validation must be enabled. Disabled active challenges are skipped,
 so their instructions are not shown. `passiveThreshold` is ignored when
 `passiveAntiSpoof` is disabled.
+
+The package also keeps a normalized, on-device landmark descriptor for the
+first aligned face. If a different frontal face is detected in two consecutive
+frames, the active challenge returns to the alignment step. Requiring two
+frames prevents a single noisy landmark reading from restarting the flow.
+If no valid single face is detected continuously for two seconds, the flow also
+returns to the alignment step. A face returning before that timeout preserves
+the current challenge progress.
 
 ### Callback behavior
 
