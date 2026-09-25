@@ -1,0 +1,25 @@
+import 'package:flutter/material.dart';
+import 'package:liveness_edge_flutter/liveness_edge_flutter.dart';
+
+void main() => runApp(const MaterialApp(home: ExampleHome()));
+
+class ExampleHome extends StatelessWidget {
+  const ExampleHome({super.key});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Liveness Edge Flutter')),
+    body: Center(
+      child: FilledButton(
+        onPressed: () => Navigator.push<void>(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                LivenessEdgeScreen(onSuccess: (_) => Navigator.pop(context)),
+          ),
+        ),
+        child: const Text('Mulai verifikasi offline'),
+      ),
+    ),
+  );
+}
