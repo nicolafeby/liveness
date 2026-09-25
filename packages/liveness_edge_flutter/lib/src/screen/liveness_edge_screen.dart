@@ -258,13 +258,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
                               if (_error != null ||
                                   status == LivenessStatus.failed) ...[
                                 const SizedBox(height: 16),
-                                FilledButton.tonal(
-                                  onPressed: _start,
-                                  style: FilledButton.styleFrom(
-                                    foregroundColor: const Color(0xFF5D31E8),
-                                  ),
-                                  child: const Text('Coba lagi'),
-                                ),
+                                _RetryButton(onPressed: _start),
                               ],
                             ],
                           ),
@@ -305,6 +299,62 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
       LivenessStatus.passed => 'Wajah berhasil diverifikasi',
       LivenessStatus.failed => 'Verifikasi belum berhasil',
     };
+  }
+}
+
+class _RetryButton extends StatelessWidget {
+  const _RetryButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    const borderRadius = BorderRadius.all(Radius.circular(24));
+
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        borderRadius: borderRadius,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF7548EE), Color(0xFF5D31E8)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x385D31E8),
+            blurRadius: 18,
+            offset: Offset(0, 7),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: borderRadius,
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.refresh_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 9),
+                Text(
+                  'Coba lagi',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    height: 1.2,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: .15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
