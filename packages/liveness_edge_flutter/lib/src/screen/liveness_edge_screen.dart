@@ -225,15 +225,17 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
                           padding: const EdgeInsets.symmetric(horizontal: 28),
                           child: Column(
                             children: [
-                              SizedBox(
-                                height: 54,
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  minHeight: 54,
+                                ),
                                 child: Center(
                                   child: Text(
                                     _error ??
                                         _result?.instruction ??
                                         'Menyiapkan kamera…',
                                     textAlign: TextAlign.center,
-                                    maxLines: 2,
+                                    maxLines: 3,
                                     style: TextStyle(
                                       color: status == LivenessStatus.passed
                                           ? const Color(0xFF14B887)
