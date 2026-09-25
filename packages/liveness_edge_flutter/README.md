@@ -88,13 +88,7 @@ Future<LivenessResult?> captureLiveness(BuildContext context) async {
           timeout: Duration(minutes: 2),
           maxFrames: 180,
           passiveAntiSpoofSensitivity: PassiveAntiSpoofSensitivity.high,
-          // Or use a calibrated value:
-          // passiveAntiSpoofSensitivity:
-          //     PassiveAntiSpoofSensitivity.withValue(0.55),
-          faceIdentitySensitivity: FaceIdentitySensitivity.high,
-          // Or use a calibrated value:
-          // faceIdentitySensitivity:
-          //     FaceIdentitySensitivity.withValue(0.05),
+          faceIdentitySensitivity: FaceIdentitySensitivity.strict,
         ),
         onSuccess: (result) {
           verifiedResult = result;
@@ -116,6 +110,20 @@ On success, `result.imageBytes` contains the verified JPEG and
 `result.passiveScore` contains the median passive anti-spoof score. The package
 does not upload or persist either value.
 
+All user-facing text defaults to English. Override any message through the
+configuration to localize the flow or use your own product copy:
+
+```dart
+const LivenessConfiguration(
+  messages: LivenessMessages(
+    moveRight: 'Geser wajah ke kanan',
+    moveLeft: 'Geser wajah ke kiri',
+    blink: 'Kedipkan kedua mata sekali.',
+    tryAgain: 'Coba lagi',
+  ),
+);
+```
+
 ### Configuration
 
 | Property | Default | Description |
@@ -123,8 +131,9 @@ does not upload or persist either value.
 | `validations` | All validations | Enabled checks: `blink`, `headTurn`, and/or `passiveAntiSpoof`. Face alignment and input-quality checks always run. |
 | `timeout` | 2 minutes | Maximum session duration. |
 | `maxFrames` | 180 | Maximum analyzed frames before failure. |
-| `passiveAntiSpoofSensitivity` | `balanced` | Anti-spoof preset: `low` (0.40), `balanced` (0.50), `high` (0.60), `strict` (0.70), or `withValue(...)` for a custom value between 0 and 1. |
+| `passiveAntiSpoofSensitivity` | `balanced` | Anti-spoof preset: `low` (0.40), `balanced` (0.50), `high` (0.60), `strict` (0.70), or `withValue(...)` for a custom value from 0 to 1. |
 | `faceIdentitySensitivity` | `balanced` | Face replacement preset: `low` (0.16), `balanced` (0.10), `high` (0.06), `strict` (0.035), or `withValue(...)` for a custom value greater than 0. |
+| `messages` | English `LivenessMessages` | User-facing challenge instructions and screen labels. Override individual values to localize the flow. |
 
 Treat the default threshold as a starting point. Calibrate it using genuine
 users, target devices, lighting conditions, and representative attacks.
@@ -132,15 +141,12 @@ At least one validation must be enabled. Disabled active challenges are skipped,
 so their instructions are not shown. Passive sensitivity is ignored when
 `passiveAntiSpoof` is disabled.
 
-The package also keeps a frozen, normalized, on-device landmark descriptor for
-the first aligned face. If a different frontal face is detected in two
-consecutive frames, the active challenge returns to the alignment step. A
-session cannot pass while an identity mismatch is pending, which closes the
-single-frame replacement gap at the end of a blink. Requiring two mismatching
-frames prevents a single noisy landmark reading from restarting the flow.
-If no valid single face is detected during an active challenge for 400 ms, the
-flow returns to alignment. Before a challenge starts, the grace period remains
-two seconds.
+The package keeps a frozen, normalized, on-device landmark descriptor for the
+first aligned face. If a different frontal face is detected in two consecutive
+frames, the active challenge returns to alignment. A session cannot pass while
+an identity mismatch is pending. If no valid single face is detected during an
+active challenge for 400 ms, the flow also returns to alignment. Before a
+challenge starts, the grace period remains two seconds.
 
 ### Callback behavior
 
@@ -226,7 +232,8 @@ MiniFASNetV2 model before commercial distribution.
 - **Front camera unavailable:** the capture screen reports an error and allows
   retrying; use a physical device with a front-facing camera.
 - **Frequent passive failures:** test representative lighting and devices before
-  adjusting the passive sensitivity; lowering it increases spoof acceptance risk.
+  lowering `passiveAntiSpoofSensitivity`; lower values increase spoof
+  acceptance risk.
 - **Simulator or emulator:** camera and native inference behavior can differ
   from physical hardware, so release validation should use real devices.
 

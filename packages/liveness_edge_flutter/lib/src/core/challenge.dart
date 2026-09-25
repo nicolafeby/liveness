@@ -12,7 +12,6 @@ import '../models/observation.dart';
 final class PassiveAntiSpoofSensitivity {
   const PassiveAntiSpoofSensitivity._(this.threshold);
 
-  /// Creates a custom sensitivity with a threshold between `0` and `1`.
   const PassiveAntiSpoofSensitivity.withValue(this.threshold)
     : assert(
         threshold >= 0 && threshold <= 1,
@@ -24,7 +23,6 @@ final class PassiveAntiSpoofSensitivity {
   static const high = PassiveAntiSpoofSensitivity._(.60);
   static const strict = PassiveAntiSpoofSensitivity._(.70);
 
-  /// Minimum passive liveness score for this preset.
   final double threshold;
 }
 
@@ -35,7 +33,6 @@ final class PassiveAntiSpoofSensitivity {
 final class FaceIdentitySensitivity {
   const FaceIdentitySensitivity._(this.threshold);
 
-  /// Creates a custom sensitivity with a threshold greater than `0`.
   const FaceIdentitySensitivity.withValue(this.threshold)
     : assert(threshold > 0, 'Face identity threshold must be greater than 0');
 
@@ -44,15 +41,109 @@ final class FaceIdentitySensitivity {
   static const high = FaceIdentitySensitivity._(.06);
   static const strict = FaceIdentitySensitivity._(.035);
 
-  /// Maximum normalized landmark distance for this preset.
   final double threshold;
+}
+
+/// User-facing text shown during a liveness session.
+///
+/// All values default to English. Override only the values needed to localize
+/// the experience or match your product's tone of voice.
+class LivenessMessages {
+  const LivenessMessages({
+    this.oneFaceRequired =
+        'Make sure exactly one face is visible and look at the camera.',
+    this.faceNotDetected =
+        'Face not detected. Verification has been restarted.',
+    this.faceContinuityLost =
+        'Face continuity was lost. Verification has been restarted.',
+    this.faceTooDark = 'Your face is too dark. Move to a brighter place.',
+    this.faceTooBright = 'Your face is too bright. Avoid direct light.',
+    this.keepFacingCamera = 'Keep facing the camera.',
+    this.keepFaceStable = 'Keep your face at the same distance and height.',
+    this.blinkNotDetected = 'Blink not detected. Try blinking once more.',
+    this.faceDirectionUnavailable =
+        'Face the camera so your face direction can be detected.',
+    this.eyesNotVisible =
+        'Your eyes are not clearly visible. Face the camera and make sure they are not covered.',
+    this.openEyes = 'Open both eyes and look at the camera.',
+    this.differentFace =
+        'A different face was detected. Verification has been restarted.',
+    this.verifyingSameFace =
+        'Keep facing the camera while we verify the same face.',
+    this.moveCloser = 'Move closer to the camera.',
+    this.moveFarther = 'Move farther from the camera.',
+    this.moveRight = 'Move your face to the right.',
+    this.moveLeft = 'Move your face to the left.',
+    this.moveDown = 'Move your face down.',
+    this.moveUp = 'Move your face up.',
+    this.spoofingDetected = 'Verification failed. Spoofing was detected.',
+    this.alignFace =
+        'Face the camera and make sure both eyes are clearly visible.',
+    this.blink = 'Blink both eyes once.',
+    this.reopenEyes = 'Open both eyes again.',
+    this.returnToCamera = 'Face the camera again.',
+    this.turnHead = 'Turn your head slightly left or right.',
+    this.verificationComplete = 'Verification complete.',
+    this.verificationFailed = 'Verification failed.',
+    this.frontCameraUnavailable = 'Front camera is not available.',
+    this.close = 'Close',
+    this.preparingCamera = 'Preparing camera…',
+    this.cameraPermissionHelp =
+        'Make sure camera permission is enabled, then try again.',
+    this.pleaseWait = 'Please wait a moment.',
+    this.positionFaceInFrame = 'Position your entire face inside the frame.',
+    this.holdStill = 'Keep your face still.',
+    this.moveSlowly = 'Follow the instruction with a slow movement.',
+    this.faceVerified = 'Face verified successfully.',
+    this.verificationUnsuccessful = 'Verification was unsuccessful.',
+    this.tryAgain = 'Try again',
+  });
+
+  final String oneFaceRequired;
+  final String faceNotDetected;
+  final String faceContinuityLost;
+  final String faceTooDark;
+  final String faceTooBright;
+  final String keepFacingCamera;
+  final String keepFaceStable;
+  final String blinkNotDetected;
+  final String faceDirectionUnavailable;
+  final String eyesNotVisible;
+  final String openEyes;
+  final String differentFace;
+  final String verifyingSameFace;
+  final String moveCloser;
+  final String moveFarther;
+  final String moveRight;
+  final String moveLeft;
+  final String moveDown;
+  final String moveUp;
+  final String spoofingDetected;
+  final String alignFace;
+  final String blink;
+  final String reopenEyes;
+  final String returnToCamera;
+  final String turnHead;
+  final String verificationComplete;
+  final String verificationFailed;
+  final String frontCameraUnavailable;
+  final String close;
+  final String preparingCamera;
+  final String cameraPermissionHelp;
+  final String pleaseWait;
+  final String positionFaceInFrame;
+  final String holdStill;
+  final String moveSlowly;
+  final String faceVerified;
+  final String verificationUnsuccessful;
+  final String tryAgain;
 }
 
 /// Settings that control an on-device liveness session.
 class LivenessConfiguration {
   /// Creates configuration for a liveness session.
   ///
-  /// Calibrate passive sensitivity with representative devices and attacks.
+  /// Calibrate sensitivity with representative devices and attacks.
   const LivenessConfiguration({
     this.validations = const {
       LivenessValidation.blink,
@@ -63,6 +154,7 @@ class LivenessConfiguration {
     this.maxFrames = 180,
     this.passiveAntiSpoofSensitivity = PassiveAntiSpoofSensitivity.balanced,
     this.faceIdentitySensitivity = FaceIdentitySensitivity.balanced,
+    this.messages = const LivenessMessages(),
   });
 
   /// Checks enabled for this session.
@@ -77,10 +169,9 @@ class LivenessConfiguration {
   /// Maximum number of camera frames analyzed before the session fails.
   final int maxFrames;
 
-  /// Passive anti-spoof preset or custom value.
+  /// Passive anti-spoof sensitivity preset or custom value.
   final PassiveAntiSpoofSensitivity passiveAntiSpoofSensitivity;
 
-  /// Minimum median passive anti-spoof score required to pass.
   double get passiveThreshold => passiveAntiSpoofSensitivity.threshold;
 
   /// Face identity sensitivity preset or custom value.
@@ -91,6 +182,9 @@ class LivenessConfiguration {
   /// Identity continuity is evaluated only while the face is frontal. Two
   /// consecutive mismatches are required to avoid resets caused by noise.
   double get faceIdentityThreshold => faceIdentitySensitivity.threshold;
+
+  /// User-facing copy used by the challenge and the ready-to-use screen.
+  final LivenessMessages messages;
 }
 
 class LivenessChallenge {
@@ -137,27 +231,25 @@ class LivenessChallenge {
     }
     if (o.faceCount != 1) {
       faceMissingSince ??= now;
-      const message =
-          'Make sure exactly one face is visible and face the camera';
-      final gracePeriod = _isActiveChallenge
+      final message = configuration.messages.oneFaceRequired;
+      final isActive = _isActiveChallenge;
+      final gracePeriod = isActive
           ? _activeFaceLossGracePeriod
           : _idleFaceLossGracePeriod;
       return now.difference(faceMissingSince!) >= gracePeriod
-          ? _reset('Face continuity was lost. Verification has restarted.')
+          ? _reset(
+              isActive
+                  ? configuration.messages.faceContinuityLost
+                  : configuration.messages.faceNotDetected,
+            )
           : result(message);
     }
     faceMissingSince = null;
     if (o.lighting == 'dark') {
-      return _handleInputIssue(
-        now,
-        'Your face is too dark. Move to a brighter area.',
-      );
+      return _handleInputIssue(now, configuration.messages.faceTooDark);
     }
     if (o.lighting == 'bright') {
-      return _handleInputIssue(
-        now,
-        'Your face is too bright. Avoid direct light.',
-      );
+      return _handleInputIssue(now, configuration.messages.faceTooBright);
     }
     qualityIssueSince = null;
     qualityIssue = null;
@@ -165,10 +257,12 @@ class LivenessChallenge {
     final identityReset = _verifyFaceIdentity(o, guidance);
     if (identityReset != null) return identityReset;
     if (!o.eyesDetected) {
-      if (!_isActiveChallenge) return result(_eyes);
+      if (!_isActiveChallenge) {
+        return result(configuration.messages.eyesNotVisible);
+      }
       eyesMissingSince ??= now;
       return now.difference(eyesMissingSince!) >= _eyesGracePeriod
-          ? result(_eyes)
+          ? result(configuration.messages.eyesNotVisible)
           : result();
     }
     eyesMissingSince = null;
@@ -182,12 +276,12 @@ class LivenessChallenge {
     if (status == LivenessStatus.align) {
       if (guidance != null || !o.eyesOpen) {
         aligned = 0;
-        return result(guidance ?? _openEyes);
+        return result(guidance ?? configuration.messages.openEyes);
       }
       if (++aligned >= 2) status = LivenessStatus.open;
     } else if (status == LivenessStatus.open) {
       if (guidance != null) return _reset(guidance);
-      if (!o.eyesOpen) return result(_openEyes);
+      if (!o.eyesOpen) return result(configuration.messages.openEyes);
       baseX = o.faceCenterX;
       baseY = o.faceCenterY;
       baseW = o.faceWidth;
@@ -196,7 +290,7 @@ class LivenessChallenge {
         _beginBlink(now);
       } else if (_uses(LivenessValidation.passiveAntiSpoof) &&
           scores.length < 5) {
-        return result('Keep facing the camera');
+        return result(configuration.messages.keepFacingCamera);
       } else if (_uses(LivenessValidation.headTurn)) {
         status = LivenessStatus.move;
       } else {
@@ -207,7 +301,7 @@ class LivenessChallenge {
         !_stable(o)) {
       unstableSince ??= now;
       return now.difference(unstableSince!) >= _inputGracePeriod
-          ? result('Keep your face at the same distance and height')
+          ? result(configuration.messages.keepFaceStable)
           : result();
     } else if (status == LivenessStatus.blink) {
       unstableSince = null;
@@ -216,7 +310,7 @@ class LivenessChallenge {
         status = LivenessStatus.reopen;
       } else if (now.difference(blinkStartedAt!) >=
           const Duration(seconds: 5)) {
-        return result('No blink detected. Try blinking once more.');
+        return result(configuration.messages.blinkNotDetected);
       } else {
         _adaptBaseline(o);
       }
@@ -235,7 +329,7 @@ class LivenessChallenge {
       }
     } else if (status == LivenessStatus.move) {
       if (o.yaw == null) {
-        return result('Face the camera so your head direction can be detected');
+        return result(configuration.messages.faceDirectionUnavailable);
       }
       baseYaw ??= o.yaw;
       final delta = (o.yaw! - baseYaw!).abs();
@@ -252,12 +346,6 @@ class LivenessChallenge {
     }
     return result();
   }
-
-  static const _eyes =
-      'Your eyes are not clearly visible. Face the camera and make sure they are not covered.';
-  static const _openEyes = 'Open both eyes and look at the camera.';
-  static const _differentFace =
-      'A different face was detected. Verification has restarted.';
 
   LivenessResult? _verifyFaceIdentity(
     LivenessObservation observation,
@@ -285,12 +373,14 @@ class LivenessChallenge {
     final distance = math.sqrt(squaredDistance / baseline.length);
     if (distance > configuration.faceIdentityThreshold) {
       identityMismatches++;
-      if (identityMismatches >= 2) return _reset(_differentFace);
+      if (identityMismatches >= 2) {
+        return _reset(configuration.messages.differentFace);
+      }
       return null;
     }
 
-    // Keep the first aligned identity frozen for the entire session. Updating
-    // it here could gradually let a replacement face become the new baseline.
+    // Keep the first aligned identity frozen for the entire session so a
+    // replacement face cannot gradually become the new baseline.
     identityMismatches = 0;
     return null;
   }
@@ -333,15 +423,15 @@ class LivenessChallenge {
       (o.faceHeight - baseH!).abs() <= .10;
   String? _alignment(LivenessObservation o) {
     if (o.faceWidth < .20 || o.faceHeight < .25) {
-      return 'Move your face closer to the camera';
+      return configuration.messages.moveCloser;
     }
     if (o.faceWidth > .70 || o.faceHeight > .75) {
-      return 'Move your face away from the camera';
+      return configuration.messages.moveFarther;
     }
-    if (o.faceCenterX < .40) return 'Move your face to the right';
-    if (o.faceCenterX > .60) return 'Move your face to the left';
-    if (o.faceCenterY < .38) return 'Move your face down';
-    if (o.faceCenterY > .62) return 'Move your face up';
+    if (o.faceCenterX < .40) return configuration.messages.moveRight;
+    if (o.faceCenterX > .60) return configuration.messages.moveLeft;
+    if (o.faceCenterY < .38) return configuration.messages.moveDown;
+    if (o.faceCenterY > .62) return configuration.messages.moveUp;
     return null;
   }
 
@@ -369,12 +459,10 @@ class LivenessChallenge {
   }
 
   LivenessResult _finish() {
-    // A single noisy identity reading is tolerated, but it must be followed by
-    // a matching frame before the session is allowed to pass. A second
-    // consecutive mismatch is handled by _verifyFaceIdentity and resets the
-    // challenge.
+    // Never pass on the first mismatching frame. A matching frame clears the
+    // pending mismatch; a second mismatch resets the challenge.
     if (identityMismatches > 0) {
-      return result('Keep facing the camera while we verify the same face');
+      return result(configuration.messages.verifyingSameFace);
     }
     if (!_uses(LivenessValidation.passiveAntiSpoof)) {
       status = LivenessStatus.passed;
@@ -386,7 +474,7 @@ class LivenessChallenge {
         : LivenessStatus.failed;
     return result(
       status == LivenessStatus.failed
-          ? 'Verification failed: spoofing detected'
+          ? configuration.messages.spoofingDetected
           : null,
     );
   }
@@ -398,16 +486,16 @@ class LivenessChallenge {
     instruction:
         message ??
         switch (status) {
-          LivenessStatus.align || LivenessStatus.open =>
-            'Face the camera and make sure both eyes are clearly visible.',
-          LivenessStatus.blink => 'Blink both eyes once.',
-          LivenessStatus.reopen => 'Open both eyes again',
+          LivenessStatus.align ||
+          LivenessStatus.open => configuration.messages.alignFace,
+          LivenessStatus.blink => configuration.messages.blink,
+          LivenessStatus.reopen => configuration.messages.reopenEyes,
           LivenessStatus.move =>
             turned >= 2
-                ? 'Face the camera again'
-                : 'Turn your head slightly left or right',
-          LivenessStatus.passed => 'Verification complete',
-          LivenessStatus.failed => 'Verification failed',
+                ? configuration.messages.returnToCamera
+                : configuration.messages.turnHead,
+          LivenessStatus.passed => configuration.messages.verificationComplete,
+          LivenessStatus.failed => configuration.messages.verificationFailed,
         },
   );
 }

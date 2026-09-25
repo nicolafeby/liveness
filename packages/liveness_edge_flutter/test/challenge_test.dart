@@ -356,9 +356,10 @@ void main() {
     challenge.advance(firstFace);
     challenge.advance(closedEyes);
 
-    final pending = challenge.advance(replacementFace);
-    expect(pending.status, isNot(LivenessStatus.passed));
-
+    expect(
+      challenge.advance(replacementFace).status,
+      isNot(LivenessStatus.passed),
+    );
     final reset = challenge.advance(replacementFace);
     expect(reset.status, LivenessStatus.align);
     expect(reset.instruction, contains('different face'));
@@ -395,5 +396,27 @@ void main() {
     challenge.advance(noisy);
 
     expect(challenge.advance(identified).status, LivenessStatus.blink);
+  });
+
+  test('uses custom messages from the configuration', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(
+        validations: {LivenessValidation.blink},
+        messages: LivenessMessages(moveRight: 'Geser wajah ke kanan'),
+      ),
+    );
+
+    final result = challenge.advance(
+      const LivenessObservation(
+        faceCount: 1,
+        eyesOpen: true,
+        faceCenterX: .3,
+        faceCenterY: .5,
+        faceWidth: .4,
+        faceHeight: .5,
+      ),
+    );
+
+    expect(result.instruction, 'Geser wajah ke kanan');
   });
 }

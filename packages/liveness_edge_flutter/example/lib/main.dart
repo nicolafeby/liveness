@@ -20,8 +20,9 @@ class ExampleHome extends StatelessWidget {
                 faceIdentitySensitivity: FaceIdentitySensitivity.strict,
               ),
               onSuccess: (_) => Navigator.pop(context),
-              onFailed: (result) =>
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.instruction))),
+              onFailed: (result) => ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(result.instruction))),
             ),
           ),
         ),

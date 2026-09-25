@@ -9,6 +9,7 @@ export 'src/core/challenge.dart'
     show
         FaceIdentitySensitivity,
         LivenessConfiguration,
+        LivenessMessages,
         PassiveAntiSpoofSensitivity;
 export 'src/core/detector.dart' show LivenessEdgeException;
 export 'src/models/liveness_result.dart';

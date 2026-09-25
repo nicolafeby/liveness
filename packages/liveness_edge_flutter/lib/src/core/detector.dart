@@ -20,19 +20,26 @@ class LivenessEdgeDetector {
     try {
       await _channel.invokeMethod<void>('initialize');
     } on PlatformException catch (error) {
-      throw LivenessEdgeException(error.message ?? 'The liveness model could not be loaded');
+      throw LivenessEdgeException(
+        error.message ?? 'The liveness model could not be loaded.',
+      );
     }
   }
 
   Future<LivenessObservation> analyze(Uint8List frame) async {
     try {
-      final result = await _channel.invokeMethod<Map<Object?, Object?>>('analyze', frame);
+      final result = await _channel.invokeMethod<Map<Object?, Object?>>(
+        'analyze',
+        frame,
+      );
       if (result == null) {
-        throw const LivenessEdgeException('The detection result is empty');
+        throw const LivenessEdgeException('Hasil deteksi kosong');
       }
       return LivenessObservation.fromMap(result);
     } on PlatformException catch (error) {
-      throw LivenessEdgeException(error.message ?? 'The frame could not be analyzed');
+      throw LivenessEdgeException(
+        error.message ?? 'The camera frame could not be analyzed.',
+      );
     }
   }
 
