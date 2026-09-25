@@ -1,4 +1,4 @@
-## 0.0.1
+## 0.1.0
 
 - Initial offline Android and iOS implementation.
 - MediaPipe face landmarks, blink blendshapes, and head-turn estimation.

@@ -1,5 +1,12 @@
 # Liveness Edge Flutter
 
+[![pub package](https://img.shields.io/pub/v/liveness_edge_flutter.svg?label=pub&color=0175C2)](https://pub.dev/packages/liveness_edge_flutter)
+[![license: MIT](https://img.shields.io/badge/license-MIT-0175C2.svg)](LICENSE)
+![platform: Android and iOS](https://img.shields.io/badge/platform-Android%20%7C%20iOS-3DDC84.svg)
+![processing: offline on-device](https://img.shields.io/badge/processing-offline%20%7C%20on--device-14B8A6.svg)
+
+![Liveness Edge Flutter: private, offline face-liveness verification](doc/assets/liveness-edge-banner-v2.png)
+
 Private, offline face-liveness verification for Flutter. Camera frames, face
 landmarks, active challenges, and passive anti-spoofing are processed on the
 device; the package does not make network requests.
@@ -81,6 +88,9 @@ Future<LivenessResult?> captureLiveness(BuildContext context) async {
           verifiedResult = result;
           Navigator.of(routeContext).pop();
         },
+        onFailed: (result) {
+          debugPrint('Liveness failed: ${result.instruction}');
+        },
         onCancel: () => Navigator.of(routeContext).pop(),
       ),
     ),
@@ -109,12 +119,48 @@ users, target devices, lighting conditions, and representative attacks.
 
 - `onSuccess` runs once after both checks pass. It does not close the route;
   the host application controls navigation.
+- `onFailed` runs once when an attempt fails because it times out, exceeds the
+  frame limit, or does not pass the passive anti-spoof check. Retrying starts a
+  new attempt and may invoke it again. It does not close the route.
 - `onCancel` runs when the close button is pressed. When omitted, the screen
   attempts to pop its route automatically.
-- A failed or timed-out session shows a retry action. It does not invoke
-  `onSuccess`.
+- A failed or timed-out session shows a retry action. Camera or model errors do
+  not invoke `onFailed`, because they do not produce a final liveness result.
 
 ## How it works
+
+### Package integration flow
+
+The `android/` and `ios/` directories at the package root contain the native
+plugin implementations that are included in every host application. The
+directories with the same names under `example/` are only the Android and iOS
+hosts used to run the sample application.
+
+```text
+Host application (or example/lib/main.dart)
+  -> package public API (lib/liveness_edge_flutter.dart)
+  -> LivenessEdgeScreen and Dart challenge state machine
+  -> Flutter MethodChannel
+       -> Android: android/.../LivenessEdgeFlutterPlugin.kt
+       -> iOS:     ios/Classes/LivenessEdgeFlutterPlugin.swift
+  -> MediaPipe Face Landmarker + ONNX Runtime
+  -> LivenessResult returned to the host application
+```
+
+The relevant package layout is:
+
+```text
+liveness_edge_flutter/
+├── lib/                 public API and Dart implementation
+├── android/             native Android plugin implementation
+├── ios/                 native iOS plugin implementation
+└── example/
+    ├── lib/             sample Flutter application
+    ├── android/         Android host for the sample
+    └── ios/             iOS host for the sample
+```
+
+### Frame processing flow
 
 ```text
 Flutter camera frame

@@ -11,13 +11,15 @@ import '../models/liveness_status.dart';
 /// A full-screen, ready-to-use on-device liveness capture flow.
 ///
 /// The widget opens the front camera, guides the user through a blink and head
-/// turn, and invokes [onSuccess] after both active and passive checks pass.
+/// turn, invokes [onSuccess] after both active and passive checks pass, or
+/// invokes [onFailed] when verification reaches a terminal failure.
 class LivenessEdgeScreen extends StatefulWidget {
   /// Creates a liveness capture screen.
   const LivenessEdgeScreen({
     super.key,
     this.configuration = const LivenessConfiguration(),
     this.onSuccess,
+    this.onFailed,
     this.onCancel,
   });
 
@@ -28,6 +30,12 @@ class LivenessEdgeScreen extends StatefulWidget {
   ///
   /// Navigation is deliberately left to the host application.
   final ValueChanged<LivenessResult>? onSuccess;
+
+  /// Called once with the final result after verification fails.
+  ///
+  /// A retry starts a new verification attempt and may invoke this callback
+  /// again. Navigation is deliberately left to the host application.
+  final ValueChanged<LivenessResult>? onFailed;
 
   /// Called when the close button is pressed.
   ///
@@ -123,6 +131,9 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen> with WidgetsBin
           setState(() => _result = next);
           if (next.status.isFinished) {
             await camera.stopImageStream();
+            if (mounted && generation == _generation) {
+              widget.onFailed?.call(next);
+            }
           }
         }
       } catch (error) {

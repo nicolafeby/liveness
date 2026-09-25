@@ -14,8 +14,12 @@ class ExampleHome extends StatelessWidget {
         onPressed: () => Navigator.push<void>(
           context,
           MaterialPageRoute(
-            builder: (_) =>
-                LivenessEdgeScreen(onSuccess: (_) => Navigator.pop(context)),
+            builder: (_) => LivenessEdgeScreen(
+              onSuccess: (_) => Navigator.pop(context),
+              onFailed: (result) => ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(result.instruction))),
+            ),
           ),
         ),
         child: const Text('Mulai verifikasi offline'),
