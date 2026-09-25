@@ -124,6 +124,26 @@ const LivenessConfiguration(
 );
 ```
 
+The primary guideline, supporting copy, and retry button can use the host
+application's design system. Text styles are merged with the defaults, while
+the button builder replaces the built-in retry button completely:
+
+```dart
+LivenessEdgeScreen(
+  guidelineTextStyle: const TextStyle(
+    color: Color(0xFF243B53),
+    fontSize: 23,
+    fontWeight: FontWeight.w700,
+  ),
+  supportingTextStyle: const TextStyle(color: Color(0xFF627D98)),
+  retryButtonBuilder: (context, label, onPressed) => OutlinedButton.icon(
+    onPressed: onPressed,
+    icon: const Icon(Icons.replay_rounded),
+    label: Text(label),
+  ),
+);
+```
+
 ### Configuration
 
 | Property | Default | Description |

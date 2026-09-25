@@ -4,4 +4,5 @@
 - MediaPipe face landmarks, blink blendshapes, and head-turn estimation.
 - MiniFASNetV2 passive anti-spoofing through ONNX Runtime.
 - Dart challenge state machine and ready-to-use camera screen.
+- Custom guideline text, styles, and retry button builder.
 - Complete setup, usage, security, and API documentation.

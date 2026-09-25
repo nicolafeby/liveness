@@ -10,6 +10,12 @@ import '../core/detector.dart';
 import '../models/liveness_result.dart';
 import '../models/liveness_status.dart';
 
+/// Builds the retry action shown after a failed attempt or screen error.
+///
+/// Use [onPressed] as the button's action so the liveness session can restart.
+typedef LivenessRetryButtonBuilder =
+    Widget Function(BuildContext context, String label, VoidCallback onPressed);
+
 /// A full-screen, ready-to-use on-device liveness capture flow.
 ///
 /// The widget opens the front camera, guides the user through a blink and head
@@ -23,6 +29,9 @@ class LivenessEdgeScreen extends StatefulWidget {
     this.onSuccess,
     this.onFailed,
     this.onCancel,
+    this.guidelineTextStyle,
+    this.supportingTextStyle,
+    this.retryButtonBuilder,
   });
 
   /// Limits and passive anti-spoof threshold used by this session.
@@ -43,6 +52,21 @@ class LivenessEdgeScreen extends StatefulWidget {
   ///
   /// When omitted, the screen attempts to pop the current route.
   final VoidCallback? onCancel;
+
+  /// Overrides the style of the primary challenge instruction.
+  ///
+  /// Unspecified properties retain the screen's default values.
+  final TextStyle? guidelineTextStyle;
+
+  /// Overrides the style of the supporting text below the instruction.
+  ///
+  /// Unspecified properties retain the screen's default values.
+  final TextStyle? supportingTextStyle;
+
+  /// Builds the retry button shown after a failed attempt or screen error.
+  ///
+  /// When omitted, the built-in retry button is used.
+  final LivenessRetryButtonBuilder? retryButtonBuilder;
 
   @override
   State<LivenessEdgeScreen> createState() => _LivenessEdgeScreenState();
@@ -69,13 +93,18 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
 
   Future<void> _start() async {
     final generation = ++_generation;
-    await _camera?.dispose();
+    final previousCamera = _camera;
+    _camera = null;
+    _clock.stop();
+    _busy = false;
+    _lastFrame = -500;
     _challenge = LivenessChallenge(widget.configuration);
     setState(() {
-      _camera = null;
       _result = null;
       _error = null;
     });
+    await previousCamera?.dispose();
+    if (!mounted || generation != _generation) return;
     try {
       await _detector.initialize();
       final cameras = await availableCameras();
@@ -112,6 +141,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
   }
 
   void _process(CameraImage image, int generation) {
+    if (generation != _generation) return;
     final interval =
         _result?.status == LivenessStatus.blink ||
             _result?.status == LivenessStatus.reopen
@@ -122,15 +152,16 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
     _lastFrame = _clock.elapsedMilliseconds;
     unawaited(() async {
       try {
-        final camera = _camera!;
+        final camera = _camera;
+        if (camera == null) return;
         final frame = encodeColorFrame(
           image,
           camera.description.sensorOrientation,
           camera.value.deviceOrientation,
         );
         final observation = await _detector.analyze(frame);
-        final next = _challenge.advance(observation);
         if (!mounted || generation != _generation) return;
+        final next = _challenge.advance(observation);
         if (next.status == LivenessStatus.passed) {
           final completed = LivenessResult(
             status: next.status,
@@ -139,19 +170,25 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
             passiveScore: next.passiveScore,
             imageBytes: encodeResultImage(frame),
           );
-          setState(() => _result = completed);
-          await camera.stopImageStream();
-          widget.onSuccess?.call(completed);
+          await _stopImageStream(camera);
+          if (mounted && generation == _generation) {
+            setState(() => _result = completed);
+            widget.onSuccess?.call(completed);
+          }
+        } else if (next.status.isFinished) {
+          await _stopImageStream(camera);
+          if (mounted && generation == _generation) {
+            setState(() => _result = next);
+            widget.onFailed?.call(next);
+          }
         } else {
           setState(() => _result = next);
-          if (next.status.isFinished) {
-            await camera.stopImageStream();
-            if (mounted && generation == _generation) {
-              widget.onFailed?.call(next);
-            }
-          }
         }
       } catch (error) {
+        if (mounted && generation == _generation) {
+          final camera = _camera;
+          if (camera != null) await _stopImageStream(camera);
+        }
         if (mounted && generation == _generation) {
           setState(() => _error = error.toString());
         }
@@ -159,6 +196,15 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
         _busy = false;
       }
     }());
+  }
+
+  Future<void> _stopImageStream(CameraController camera) async {
+    if (!camera.value.isStreamingImages) return;
+    try {
+      await camera.stopImageStream();
+    } on CameraException {
+      // It may already be stopping because of an app lifecycle transition.
+    }
   }
 
   @override
@@ -248,7 +294,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
                                       fontSize: 21,
                                       height: 1.25,
                                       fontWeight: FontWeight.w600,
-                                    ),
+                                    ).merge(widget.guidelineTextStyle),
                                   ),
                                 ),
                               ),
@@ -260,15 +306,24 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
                                   color: Color(0xFF77807E),
                                   fontSize: 14,
                                   height: 1.4,
-                                ),
+                                ).merge(widget.supportingTextStyle),
                               ),
                               if (_error != null ||
                                   status == LivenessStatus.failed) ...[
                                 const SizedBox(height: 16),
-                                _RetryButton(
-                                  label: widget.configuration.messages.tryAgain,
-                                  onPressed: _start,
-                                ),
+                                if (widget.retryButtonBuilder
+                                    case final builder?)
+                                  builder(
+                                    context,
+                                    widget.configuration.messages.tryAgain,
+                                    _start,
+                                  )
+                                else
+                                  _RetryButton(
+                                    label:
+                                        widget.configuration.messages.tryAgain,
+                                    onPressed: _start,
+                                  ),
                               ],
                             ],
                           ),
