@@ -26,7 +26,10 @@ Uint8List encodeColorFrame(
     );
   }
   if (frame.format.group == ImageFormatGroup.bgra8888) {
-    return _encodeBgraFrame(frame, rotation);
+    // camera_avfoundation applies AVCaptureConnection.videoOrientation before
+    // delivering BGRA image-stream buffers. They are already display-oriented;
+    // applying sensorOrientation again would rotate the final JPEG sideways.
+    return _encodeBgraFrame(frame, 0);
   }
   if (frame.format.group != ImageFormatGroup.yuv420 &&
       frame.format.group != ImageFormatGroup.nv21) {
@@ -159,7 +162,7 @@ Uint8List encodeResultImage(Uint8List frame) {
     throw const FormatException('The liveness result frame size is invalid.');
   }
 
-  final source = img.Image(width: width, height: height);
+  var source = img.Image(width: width, height: height);
   var offset = 8;
   for (var y = 0; y < height; y++) {
     for (var x = 0; x < width; x++) {
@@ -170,17 +173,24 @@ Uint8List encodeResultImage(Uint8List frame) {
     }
   }
 
+  // Some camera_avfoundation/device combinations still deliver landscape
+  // pixels while reporting a portrait device orientation. Normalize from the
+  // actual pixel dimensions so the exported result is reliably portrait.
+  if (source.width > source.height) {
+    source = img.copyRotate(source, angle: -90);
+  }
+
   const guideAspectRatio = 1 / 1.18;
-  var cropWidth = width;
+  var cropWidth = source.width;
   var cropHeight = (cropWidth / guideAspectRatio).round();
-  if (cropHeight > height) {
-    cropHeight = height;
+  if (cropHeight > source.height) {
+    cropHeight = source.height;
     cropWidth = (cropHeight * guideAspectRatio).round();
   }
   final cropped = img.copyCrop(
     source,
-    x: (width - cropWidth) ~/ 2,
-    y: (height - cropHeight) ~/ 2,
+    x: (source.width - cropWidth) ~/ 2,
+    y: (source.height - cropHeight) ~/ 2,
     width: cropWidth,
     height: cropHeight,
   );
