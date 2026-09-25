@@ -1,8 +1,3 @@
-## Unreleased
-
-- Add selectable blink, head-turn, and passive anti-spoof validations through
-  `LivenessConfiguration.validations`.
-
 ## 0.1.0
 
 - Initial offline Android and iOS implementation.
