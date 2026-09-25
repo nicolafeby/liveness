@@ -83,6 +83,11 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
   int _generation = 0;
   final _clock = Stopwatch();
   int _lastFrame = -500;
+  String? _displayedInstruction;
+  String? _pendingInstruction;
+  int? _pendingInstructionSince;
+
+  static const _instructionHold = Duration(milliseconds: 600);
 
   @override
   void initState() {
@@ -98,6 +103,9 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
     _clock.stop();
     _busy = false;
     _lastFrame = -500;
+    _displayedInstruction = null;
+    _pendingInstruction = null;
+    _pendingInstructionSince = null;
     _challenge = LivenessChallenge(widget.configuration);
     setState(() {
       _result = null;
@@ -131,7 +139,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
       _clock
         ..reset()
         ..start();
-      setState(() => _result = _challenge.result());
+      _updateResult(_challenge.result(), forceInstruction: true);
       await camera.startImageStream((frame) => _process(frame, generation));
     } catch (error) {
       if (mounted && generation == _generation) {
@@ -172,17 +180,17 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
           );
           await _stopImageStream(camera);
           if (mounted && generation == _generation) {
-            setState(() => _result = completed);
+            _updateResult(completed, forceInstruction: true);
             widget.onSuccess?.call(completed);
           }
         } else if (next.status.isFinished) {
           await _stopImageStream(camera);
           if (mounted && generation == _generation) {
-            setState(() => _result = next);
+            _updateResult(next, forceInstruction: true);
             widget.onFailed?.call(next);
           }
         } else {
-          setState(() => _result = next);
+          _updateResult(next);
         }
       } catch (error) {
         if (mounted && generation == _generation) {
@@ -196,6 +204,31 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
         _busy = false;
       }
     }());
+  }
+
+  void _updateResult(LivenessResult next, {bool forceInstruction = false}) {
+    final previousStatus = _result?.status;
+    final instructionChanged = next.instruction != _displayedInstruction;
+    final statusChanged = next.status != previousStatus;
+
+    if (forceInstruction || statusChanged || _displayedInstruction == null) {
+      _displayedInstruction = next.instruction;
+      _pendingInstruction = null;
+      _pendingInstructionSince = null;
+    } else if (!instructionChanged) {
+      _pendingInstruction = null;
+      _pendingInstructionSince = null;
+    } else if (_pendingInstruction != next.instruction) {
+      _pendingInstruction = next.instruction;
+      _pendingInstructionSince = _clock.elapsedMilliseconds;
+    } else if (_clock.elapsedMilliseconds - _pendingInstructionSince! >=
+        _instructionHold.inMilliseconds) {
+      _displayedInstruction = next.instruction;
+      _pendingInstruction = null;
+      _pendingInstructionSince = null;
+    }
+
+    setState(() => _result = next);
   }
 
   Future<void> _stopImageStream(CameraController camera) async {
@@ -280,7 +313,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
                                 child: Center(
                                   child: Text(
                                     _error ??
-                                        _result?.instruction ??
+                                        _displayedInstruction ??
                                         widget
                                             .configuration
                                             .messages
@@ -497,6 +530,9 @@ class _FaceCaptureGuide extends StatelessWidget {
     return FittedBox(
       fit: BoxFit.cover,
       child: SizedBox(
+        // CameraPreview in portrait uses the reciprocal of the sensor's
+        // landscape aspect ratio. Match those constraints so the texture is
+        // cropped by FittedBox without ever being stretched.
         width: preview.height,
         height: preview.width,
         child: CameraPreview(controller),
