@@ -22,8 +22,44 @@ void main() {
       ],
     });
 
-    final output = encodeColorFrame(frame, 0, DeviceOrientation.portraitUp);
+    final output = encodeColorFrame(frame, 90, DeviceOrientation.portraitUp);
 
+    expect((output[4] << 8) | output[5], width);
+    expect((output[6] << 8) | output[7], height);
+    expect(output.sublist(8, 11), [10, 20, 30]);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  test('does not rotate display-oriented iOS BGRA frames a second time', () {
+    const sourceWidth = 120;
+    const sourceHeight = 100;
+    final bytes = Uint8List(sourceWidth * sourceHeight * 4);
+    bytes.setRange(0, 4, [10, 20, 30, 255]);
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    // ignore: deprecated_member_use
+    final frame = CameraImage.fromPlatformData({
+      'format': 1111970369,
+      'width': sourceWidth,
+      'height': sourceHeight,
+      'planes': [
+        {
+          'bytes': bytes,
+          'bytesPerRow': sourceWidth * 4,
+          'bytesPerPixel': 4,
+        },
+      ],
+    });
+
+    final output = encodeColorFrame(
+      frame,
+      90,
+      DeviceOrientation.portraitUp,
+    );
+    final width = (output[4] << 8) | output[5];
+    final height = (output[6] << 8) | output[7];
+
+    expect(width, sourceWidth);
+    expect(height, sourceHeight);
     expect(output.sublist(8, 11), [10, 20, 30]);
     debugDefaultTargetPlatformOverride = null;
   });
@@ -112,5 +148,27 @@ void main() {
     expect(decoded.height, 118);
     expect(decoded.getPixel(10, 50).r, greaterThan(decoded.getPixel(10, 50).b));
     expect(decoded.getPixel(90, 50).b, greaterThan(decoded.getPixel(90, 50).r));
+  });
+
+  test('rotates a landscape result frame into upright portrait before cropping', () {
+    const width = 150;
+    const height = 100;
+    final frame = Uint8List(8 + width * height * 3);
+    frame.setRange(0, 8, [76, 86, 67, 49, 0, width, 0, height]);
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        final offset = 8 + (y * width + x) * 3;
+        frame[offset] = x < width ~/ 2 ? 255 : 0;
+        frame[offset + 2] = x < width ~/ 2 ? 0 : 255;
+      }
+    }
+
+    final jpeg = encodeResultImage(frame);
+    final decoded = img.decodeJpg(jpeg)!;
+
+    expect(decoded.width, 100);
+    expect(decoded.height, 118);
+    expect(decoded.getPixel(50, 10).r, greaterThan(decoded.getPixel(50, 10).b));
+    expect(decoded.getPixel(50, 108).b, greaterThan(decoded.getPixel(50, 108).r));
   });
 }
