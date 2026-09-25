@@ -64,7 +64,7 @@ void main() {
     challenge.advance(front);
 
     expect(challenge.status, LivenessStatus.move);
-    expect(challenge.result().instruction, contains('Menoleh'));
+    expect(challenge.result().instruction, contains('Turn your head'));
     expect(challenge.result().passiveScore, isNull);
   });
 
@@ -114,7 +114,7 @@ void main() {
     );
 
     expect(result.status, LivenessStatus.blink);
-    expect(result.instruction, 'Kedipkan kedua mata sekali.');
+    expect(result.instruction, 'Blink both eyes once.');
   });
 
   test('does not reset blink after one unstable frame', () {
@@ -173,7 +173,7 @@ void main() {
     final result = challenge.advance(const LivenessObservation(faceCount: 0));
 
     expect(result.status, LivenessStatus.blink);
-    expect(result.instruction, contains('tepat satu wajah'));
+    expect(result.instruction, contains('exactly one face'));
   });
 
   test('restarts from alignment when face is missing for two seconds', () {
@@ -193,7 +193,7 @@ void main() {
     final reset = challenge.advance(const LivenessObservation(faceCount: 0));
 
     expect(reset.status, LivenessStatus.align);
-    expect(reset.instruction, contains('Wajah tidak terdeteksi'));
+    expect(reset.instruction, contains('Face not detected'));
   });
 
   test('cancels face-missing timer when face returns', () {
@@ -228,7 +228,7 @@ void main() {
     }
 
     expect(challenge.status, LivenessStatus.move);
-    expect(challenge.result().instruction, contains('Menoleh'));
+    expect(challenge.result().instruction, contains('Turn your head'));
   });
 
   test('completes a passive-only session without blink guidance', () {
@@ -241,7 +241,7 @@ void main() {
     LivenessResult? result;
     for (var i = 0; i < 5; i++) {
       result = challenge.advance(front);
-      expect(result.instruction, isNot(contains('Kedip')));
+      expect(result.instruction, isNot(contains('Blink')));
     }
 
     expect(result!.status, LivenessStatus.passed);
@@ -290,7 +290,7 @@ void main() {
     final reset = challenge.advance(differentFace);
 
     expect(reset.status, LivenessStatus.align);
-    expect(reset.instruction, contains('Wajah berbeda'));
+    expect(reset.instruction, contains('different face'));
   });
 
   test('does not reset identity on a single noisy frame', () {
@@ -324,5 +324,27 @@ void main() {
     challenge.advance(noisy);
 
     expect(challenge.advance(identified).status, LivenessStatus.blink);
+  });
+
+  test('uses custom messages from the configuration', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(
+        validations: {LivenessValidation.blink},
+        messages: LivenessMessages(moveRight: 'Geser wajah ke kanan'),
+      ),
+    );
+
+    final result = challenge.advance(
+      const LivenessObservation(
+        faceCount: 1,
+        eyesOpen: true,
+        faceCenterX: .3,
+        faceCenterY: .5,
+        faceWidth: .4,
+        faceHeight: .5,
+      ),
+    );
+
+    expect(result.instruction, 'Geser wajah ke kanan');
   });
 }

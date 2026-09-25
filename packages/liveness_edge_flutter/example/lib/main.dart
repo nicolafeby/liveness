@@ -22,7 +22,7 @@ class ExampleHome extends StatelessWidget {
             ),
           ),
         ),
-        child: const Text('Mulai verifikasi offline'),
+        child: const Text('Start offline verification'),
       ),
     ),
   );

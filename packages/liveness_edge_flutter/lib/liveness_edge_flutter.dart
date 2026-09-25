@@ -5,7 +5,7 @@
 /// [LivenessResult].
 library;
 
-export 'src/core/challenge.dart' show LivenessConfiguration;
+export 'src/core/challenge.dart' show LivenessConfiguration, LivenessMessages;
 export 'src/core/detector.dart' show LivenessEdgeException;
 export 'src/models/liveness_result.dart';
 export 'src/models/liveness_status.dart';

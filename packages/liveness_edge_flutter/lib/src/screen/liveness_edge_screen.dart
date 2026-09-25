@@ -83,7 +83,9 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
           .where((c) => c.lensDirection == CameraLensDirection.front)
           .firstOrNull;
       if (front == null) {
-        throw const LivenessEdgeException('Kamera depan tidak tersedia');
+        throw LivenessEdgeException(
+          widget.configuration.messages.frontCameraUnavailable,
+        );
       }
       final camera = CameraController(
         front,
@@ -201,7 +203,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
                   top: 8,
                   right: 12,
                   child: IconButton(
-                    tooltip: 'Tutup',
+                    tooltip: widget.configuration.messages.close,
                     onPressed:
                         widget.onCancel ?? () => Navigator.maybePop(context),
                     icon: const Icon(Icons.close_rounded),
@@ -233,7 +235,10 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
                                   child: Text(
                                     _error ??
                                         _result?.instruction ??
-                                        'Menyiapkan kamera…',
+                                        widget
+                                            .configuration
+                                            .messages
+                                            .preparingCamera,
                                     textAlign: TextAlign.center,
                                     maxLines: 3,
                                     style: TextStyle(
@@ -260,7 +265,10 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
                               if (_error != null ||
                                   status == LivenessStatus.failed) ...[
                                 const SizedBox(height: 16),
-                                _RetryButton(onPressed: _start),
+                                _RetryButton(
+                                  label: widget.configuration.messages.tryAgain,
+                                  onPressed: _start,
+                                ),
                               ],
                             ],
                           ),
@@ -290,23 +298,24 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
   };
 
   String _supportingText(LivenessStatus? status) {
-    if (_error != null) return 'Pastikan izin kamera aktif, lalu coba kembali.';
+    final messages = widget.configuration.messages;
+    if (_error != null) return messages.cameraPermissionHelp;
     return switch (status) {
-      null => 'Mohon tunggu sebentar',
+      null => messages.pleaseWait,
       LivenessStatus.align ||
-      LivenessStatus.open => 'Posisikan seluruh wajah di dalam bingkai',
-      LivenessStatus.blink ||
-      LivenessStatus.reopen => 'Jaga posisi wajah tetap stabil',
-      LivenessStatus.move => 'Ikuti petunjuk dengan gerakan perlahan',
-      LivenessStatus.passed => 'Wajah berhasil diverifikasi',
-      LivenessStatus.failed => 'Verifikasi belum berhasil',
+      LivenessStatus.open => messages.positionFaceInFrame,
+      LivenessStatus.blink || LivenessStatus.reopen => messages.holdStill,
+      LivenessStatus.move => messages.moveSlowly,
+      LivenessStatus.passed => messages.faceVerified,
+      LivenessStatus.failed => messages.verificationUnsuccessful,
     };
   }
 }
 
 class _RetryButton extends StatelessWidget {
-  const _RetryButton({required this.onPressed});
+  const _RetryButton({required this.label, required this.onPressed});
 
+  final String label;
   final VoidCallback onPressed;
 
   @override
@@ -334,16 +343,20 @@ class _RetryButton extends StatelessWidget {
         child: InkWell(
           onTap: onPressed,
           borderRadius: borderRadius,
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.refresh_rounded, color: Colors.white, size: 20),
-                SizedBox(width: 9),
+                const Icon(
+                  Icons.refresh_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 9),
                 Text(
-                  'Coba lagi',
-                  style: TextStyle(
+                  label,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 15,
                     height: 1.2,

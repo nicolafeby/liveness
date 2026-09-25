@@ -21,7 +21,7 @@ class LivenessEdgeDetector {
       await _channel.invokeMethod<void>('initialize');
     } on PlatformException catch (error) {
       throw LivenessEdgeException(
-        error.message ?? 'Model liveness tidak dapat dimuat',
+        error.message ?? 'The liveness model could not be loaded.',
       );
     }
   }
@@ -38,7 +38,7 @@ class LivenessEdgeDetector {
       return LivenessObservation.fromMap(result);
     } on PlatformException catch (error) {
       throw LivenessEdgeException(
-        error.message ?? 'Frame tidak dapat dianalisis',
+        error.message ?? 'The camera frame could not be analyzed.',
       );
     }
   }
