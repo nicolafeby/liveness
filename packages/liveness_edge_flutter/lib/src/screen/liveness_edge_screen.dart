@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
@@ -46,7 +48,8 @@ class LivenessEdgeScreen extends StatefulWidget {
   State<LivenessEdgeScreen> createState() => _LivenessEdgeScreenState();
 }
 
-class _LivenessEdgeScreenState extends State<LivenessEdgeScreen> with WidgetsBindingObserver {
+class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
+    with WidgetsBindingObserver {
   final _detector = LivenessEdgeDetector();
   CameraController? _camera;
   late LivenessChallenge _challenge;
@@ -76,7 +79,9 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen> with WidgetsBin
     try {
       await _detector.initialize();
       final cameras = await availableCameras();
-      final front = cameras.where((c) => c.lensDirection == CameraLensDirection.front).firstOrNull;
+      final front = cameras
+          .where((c) => c.lensDirection == CameraLensDirection.front)
+          .firstOrNull;
       if (front == null) {
         throw const LivenessEdgeException('Kamera depan tidak tersedia');
       }
@@ -105,14 +110,22 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen> with WidgetsBin
   }
 
   void _process(CameraImage image, int generation) {
-    final interval = _result?.status == LivenessStatus.blink || _result?.status == LivenessStatus.reopen ? 100 : 200;
+    final interval =
+        _result?.status == LivenessStatus.blink ||
+            _result?.status == LivenessStatus.reopen
+        ? 50
+        : 200;
     if (_busy || _clock.elapsedMilliseconds - _lastFrame < interval) return;
     _busy = true;
     _lastFrame = _clock.elapsedMilliseconds;
     unawaited(() async {
       try {
         final camera = _camera!;
-        final frame = encodeColorFrame(image, camera.description.sensorOrientation, camera.value.deviceOrientation);
+        final frame = encodeColorFrame(
+          image,
+          camera.description.sensorOrientation,
+          camera.value.deviceOrientation,
+        );
         final observation = await _detector.analyze(frame);
         final next = _challenge.advance(observation);
         if (!mounted || generation != _generation) return;
@@ -148,7 +161,8 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen> with WidgetsBin
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
       _generation++;
       _camera?.dispose();
       _camera = null;
@@ -170,62 +184,261 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen> with WidgetsBin
   Widget build(BuildContext context) {
     final camera = _camera;
     return Scaffold(
-      backgroundColor: const Color(0xff121b1b),
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (camera != null && camera.value.isInitialized)
-            ClipRect(
-              child: FittedBox(
-                fit: BoxFit.cover,
-                child: SizedBox(
-                  width: camera.value.previewSize!.height,
-                  height: camera.value.previewSize!.width,
-                  child: CameraPreview(camera),
-                ),
-              ),
-            ),
-          const Center(
-            child: IgnorePointer(
-              child: SizedBox(
-                width: 300,
-                height: 360,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    border: Border.fromBorderSide(BorderSide(color: Color(0xff64d7c5), width: 3)),
-                    borderRadius: BorderRadius.all(Radius.elliptical(150, 180)),
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final guideWidth = math.min(
+              constraints.maxWidth * .76,
+              constraints.maxHeight * .52 / 1.28,
+            );
+            final guideSize = Size(guideWidth, guideWidth * 1.28);
+            final status = _result?.status;
+
+            return Stack(
+              children: [
+                Positioned(
+                  top: 8,
+                  right: 12,
+                  child: IconButton(
+                    tooltip: 'Tutup',
+                    onPressed:
+                        widget.onCancel ?? () => Navigator.maybePop(context),
+                    icon: const Icon(Icons.close_rounded),
+                    color: const Color(0xFF202727),
                   ),
                 ),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: IconButton(
-                onPressed: widget.onCancel ?? () => Navigator.maybePop(context),
-                icon: const Icon(Icons.close, color: Colors.white),
-              ),
-            ),
-          ),
-          Positioned(
-            left: 24,
-            right: 24,
-            bottom: 60,
-            child: Column(
-              children: [
-                Text(
-                  _error ?? _result?.instruction ?? 'Menyiapkan model on-device…',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w600),
+                Positioned.fill(
+                  child: Column(
+                    children: [
+                      const Spacer(flex: 2),
+                      _FaceCaptureGuide(
+                        size: guideSize,
+                        camera: camera,
+                        progress: _progressFor(status),
+                        completed: status == LivenessStatus.passed,
+                      ),
+                      const Spacer(flex: 1),
+                      SizedBox(
+                        height: 160,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 28),
+                          child: Column(
+                            children: [
+                              SizedBox(
+                                height: 54,
+                                child: Center(
+                                  child: Text(
+                                    _error ??
+                                        _result?.instruction ??
+                                        'Menyiapkan kamera…',
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    style: TextStyle(
+                                      color: status == LivenessStatus.passed
+                                          ? const Color(0xFF14B887)
+                                          : const Color(0xFF202727),
+                                      fontSize: 21,
+                                      height: 1.25,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                _supportingText(status),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Color(0xFF77807E),
+                                  fontSize: 14,
+                                  height: 1.4,
+                                ),
+                              ),
+                              if (_error != null ||
+                                  status == LivenessStatus.failed) ...[
+                                const SizedBox(height: 16),
+                                FilledButton.tonal(
+                                  onPressed: _start,
+                                  style: FilledButton.styleFrom(
+                                    foregroundColor: const Color(0xFF5D31E8),
+                                  ),
+                                  child: const Text('Coba lagi'),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                      const Spacer(flex: 2),
+                    ],
+                  ),
                 ),
-                if (_error != null || _result?.status == LivenessStatus.failed)
-                  TextButton(onPressed: _start, child: const Text('Coba lagi')),
               ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  double _progressFor(LivenessStatus? status) => switch (status) {
+    null => 0,
+    LivenessStatus.align => .16,
+    LivenessStatus.open => .32,
+    LivenessStatus.blink => .52,
+    LivenessStatus.reopen => .68,
+    LivenessStatus.move => .84,
+    LivenessStatus.passed => 1,
+    LivenessStatus.failed => 0,
+  };
+
+  String _supportingText(LivenessStatus? status) {
+    if (_error != null) return 'Pastikan izin kamera aktif, lalu coba kembali.';
+    return switch (status) {
+      null => 'Mohon tunggu sebentar',
+      LivenessStatus.align ||
+      LivenessStatus.open => 'Posisikan seluruh wajah di dalam bingkai',
+      LivenessStatus.blink ||
+      LivenessStatus.reopen => 'Jaga posisi wajah tetap stabil',
+      LivenessStatus.move => 'Ikuti petunjuk dengan gerakan perlahan',
+      LivenessStatus.passed => 'Wajah berhasil diverifikasi',
+      LivenessStatus.failed => 'Verifikasi belum berhasil',
+    };
+  }
+}
+
+class _FaceCaptureGuide extends StatelessWidget {
+  const _FaceCaptureGuide({
+    required this.size,
+    required this.camera,
+    required this.progress,
+    required this.completed,
+  });
+
+  final Size size;
+  final CameraController? camera;
+  final double progress;
+  final bool completed;
+
+  @override
+  Widget build(BuildContext context) {
+    const ringPadding = 25.0;
+    return SizedBox(
+      width: size.width + ringPadding * 2,
+      height: size.height + ringPadding * 2,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Center(
+            child: ClipOval(
+              child: SizedBox.fromSize(size: size, child: _cameraPreview()),
+            ),
+          ),
+          IgnorePointer(
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(end: progress),
+              duration: const Duration(milliseconds: 480),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, child) => CustomPaint(
+                painter: _SegmentedRingPainter(
+                  progress: value,
+                  completed: completed,
+                  padding: ringPadding,
+                ),
+              ),
             ),
           ),
         ],
       ),
     );
   }
+
+  Widget _cameraPreview() {
+    final controller = camera;
+    if (controller == null || !controller.value.isInitialized) {
+      return const DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFF0F3F2), Color(0xFFDDE5E3)],
+          ),
+        ),
+        child: Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2.5,
+            color: Color(0xFF6635E8),
+          ),
+        ),
+      );
+    }
+    final preview = controller.value.previewSize!;
+    return FittedBox(
+      fit: BoxFit.cover,
+      child: SizedBox(
+        width: preview.height,
+        height: preview.width,
+        child: CameraPreview(controller),
+      ),
+    );
+  }
+}
+
+class _SegmentedRingPainter extends CustomPainter {
+  const _SegmentedRingPainter({
+    required this.progress,
+    required this.completed,
+    required this.padding,
+  });
+
+  final double progress;
+  final bool completed;
+  final double padding;
+
+  static const _segments = 64;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final innerRx = (size.width - padding * 2) / 2 + 7;
+    final innerRy = (size.height - padding * 2) / 2 + 7;
+    const tickLength = 13.0;
+    final activeSegments = (progress.clamp(0.0, 1.0) * _segments).round();
+
+    for (var index = 0; index < _segments; index++) {
+      final angle = -math.pi / 2 + (math.pi * 2 * index / _segments);
+      final cosAngle = math.cos(angle);
+      final sinAngle = math.sin(angle);
+      final start = Offset(
+        center.dx + innerRx * cosAngle,
+        center.dy + innerRy * sinAngle,
+      );
+      final end = Offset(
+        center.dx + (innerRx + tickLength) * cosAngle,
+        center.dy + (innerRy + tickLength) * sinAngle,
+      );
+      final isActive = index < activeSegments;
+      final color = completed
+          ? const Color(0xFF25C995)
+          : isActive
+          ? const Color(0xFF6635E8)
+          : const Color(0xFFD1D6D5);
+
+      canvas.drawLine(
+        start,
+        end,
+        Paint()
+          ..color = color
+          ..strokeWidth = 3.5
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SegmentedRingPainter oldDelegate) =>
+      oldDelegate.progress != progress ||
+      oldDelegate.completed != completed ||
+      oldDelegate.padding != padding;
 }

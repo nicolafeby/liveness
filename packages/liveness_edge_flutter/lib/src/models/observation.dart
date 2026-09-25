@@ -1,6 +1,7 @@
 class LivenessObservation {
   const LivenessObservation({
     required this.faceCount,
+    this.eyesDetected = true,
     this.eyesOpen = false,
     this.faceCenterX = 0,
     this.faceCenterY = 0,
@@ -12,6 +13,7 @@ class LivenessObservation {
   });
 
   final int faceCount;
+  final bool eyesDetected;
   final bool eyesOpen;
   final double faceCenterX;
   final double faceCenterY;
@@ -24,6 +26,8 @@ class LivenessObservation {
   factory LivenessObservation.fromMap(Map<Object?, Object?> map) =>
       LivenessObservation(
         faceCount: map['faceCount'] as int,
+        eyesDetected:
+            map['eyesDetected'] as bool? ?? map.containsKey('eyesOpen'),
         eyesOpen: map['eyesOpen'] as bool? ?? false,
         faceCenterX: (map['faceCenterX'] as num?)?.toDouble() ?? 0,
         faceCenterY: (map['faceCenterY'] as num?)?.toDouble() ?? 0,

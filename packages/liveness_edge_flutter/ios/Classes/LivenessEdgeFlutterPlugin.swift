@@ -78,10 +78,11 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
     let minX=points.map{$0.x}.min()!, maxX=points.map{$0.x}.max()!, minY=points.map{$0.y}.min()!, maxY=points.map{$0.y}.max()!
     var blend:[String:Float]=[:]
     if let shapes=detected.faceBlendshapes.first?.categories { for item in shapes { blend[item.categoryName ?? ""] = item.score } }
+    let eyesDetected=blend["eyeBlinkLeft"] != nil && blend["eyeBlinkRight"] != nil
     let eyesOpen=max(blend["eyeBlinkLeft"] ?? 1, blend["eyeBlinkRight"] ?? 1) < 0.55
     let left=points[33], right=points[263], nose=points[1]; let dx=right.x-left.x, dy=right.y-left.y
     let offset=((nose.x-(left.x+right.x)/2)*dx+(nose.y-(left.y+right.y)/2)*dy)/(dx*dx+dy*dy)
-    var output:[String:Any] = ["faceCount":1,"eyesOpen":eyesOpen,"faceCenterX":Double((minX+maxX)/2),
+    var output:[String:Any] = ["faceCount":1,"eyesDetected":eyesDetected,"eyesOpen":eyesOpen,"faceCenterX":Double((minX+maxX)/2),
       "faceCenterY":Double((minY+maxY)/2),"faceWidth":Double(maxX-minX),"faceHeight":Double(maxY-minY),
       "yaw":Double(atan2(2*offset,1))*180/Double.pi,"liveScore":try passive(data,width,height,minX,minY,maxX,maxY)]
     let mean = luminance(data,width,height,minX,minY,maxX,maxY)

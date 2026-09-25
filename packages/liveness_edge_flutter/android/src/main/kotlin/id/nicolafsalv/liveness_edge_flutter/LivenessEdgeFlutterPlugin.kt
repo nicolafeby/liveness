@@ -69,10 +69,11 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
         if (detected.faceLandmarks().size != 1) return mapOf("faceCount" to detected.faceLandmarks().size)
         val points=detected.faceLandmarks()[0]; val minX=points.minOf{it.x()}; val maxX=points.maxOf{it.x()}; val minY=points.minOf{it.y()}; val maxY=points.maxOf{it.y()}
         val blend=detected.faceBlendshapes().orElse(emptyList()).getOrNull(0).orEmpty().associate{it.categoryName() to it.score()}
+        val eyesDetected=blend.containsKey("eyeBlinkLeft")&&blend.containsKey("eyeBlinkRight")
         val eyesOpen=maxOf(blend["eyeBlinkLeft"]?:1f,blend["eyeBlinkRight"]?:1f)<.55f
         val left=points[33]; val right=points[263]; val nose=points[1]; val dx=right.x()-left.x(); val dy=right.y()-left.y()
         val offset=((nose.x()-(left.x()+right.x())/2)*dx+(nose.y()-(left.y()+right.y())/2)*dy)/(dx*dx+dy*dy)
-        return mapOf("faceCount" to 1,"eyesOpen" to eyesOpen,"faceCenterX" to ((minX+maxX)/2).toDouble(),"faceCenterY" to ((minY+maxY)/2).toDouble(),
+        return mapOf("faceCount" to 1,"eyesDetected" to eyesDetected,"eyesOpen" to eyesOpen,"faceCenterX" to ((minX+maxX)/2).toDouble(),"faceCenterY" to ((minY+maxY)/2).toDouble(),
             "faceWidth" to (maxX-minX).toDouble(),"faceHeight" to (maxY-minY).toDouble(),"lighting" to lighting(bitmap,minX,minY,maxX,maxY),
             "yaw" to Math.toDegrees(atan2((2*offset).toDouble(),1.0)),"liveScore" to passive(bitmap,minX,minY,maxX,maxY))
     }

@@ -53,35 +53,58 @@ class LivenessChallenge {
   final LivenessConfiguration configuration;
   final DateTime _started;
   LivenessStatus status = LivenessStatus.align;
-  int frames = 0,
-      aligned = 0,
-      blinkWait = 0,
-      reopened = 0,
-      turned = 0,
-      returned = 0;
+  int frames = 0, aligned = 0, turned = 0, returned = 0;
   double? baseX, baseY, baseW, baseH, baseYaw;
-  DateTime? closedAt;
+  DateTime? blinkStartedAt,
+      closedAt,
+      unstableSince,
+      eyesMissingSince,
+      qualityIssueSince;
+  String? qualityIssue;
   final List<double> scores = [];
+
+  static const _inputGracePeriod = Duration(milliseconds: 750);
+  static const _eyesGracePeriod = Duration(milliseconds: 500);
 
   bool _uses(LivenessValidation validation) =>
       configuration.validations.contains(validation);
 
   LivenessResult advance(LivenessObservation o) {
+    final now = DateTime.now();
     if (++frames > configuration.maxFrames ||
-        DateTime.now().difference(_started) > configuration.timeout) {
+        now.difference(_started) > configuration.timeout) {
       status = LivenessStatus.failed;
       return result();
     }
     if (o.faceCount != 1) {
-      return _reset('Pastikan tepat satu wajah terlihat dan hadap kamera');
+      return _handleInputIssue(
+        now,
+        'Pastikan tepat satu wajah terlihat dan hadap kamera',
+      );
     }
     if (o.lighting == 'dark') {
-      return _reset('Wajah terlalu gelap, pindah ke tempat yang lebih terang');
+      return _handleInputIssue(
+        now,
+        'Wajah terlalu gelap, pindah ke tempat yang lebih terang',
+      );
     }
     if (o.lighting == 'bright') {
-      return _reset('Wajah terlalu terang, hindari cahaya langsung');
+      return _handleInputIssue(
+        now,
+        'Wajah terlalu terang, hindari cahaya langsung',
+      );
     }
+    qualityIssueSince = null;
+    qualityIssue = null;
     final guidance = _alignment(o);
+    if (!o.eyesDetected) {
+      if (!_isActiveChallenge) return result(_eyes);
+      eyesMissingSince ??= now;
+      return now.difference(eyesMissingSince!) >= _eyesGracePeriod
+          ? result(_eyes)
+          : result();
+    }
+    eyesMissingSince = null;
     if (_uses(LivenessValidation.passiveAntiSpoof) &&
         status != LivenessStatus.move &&
         guidance == null &&
@@ -92,18 +115,18 @@ class LivenessChallenge {
     if (status == LivenessStatus.align) {
       if (guidance != null || !o.eyesOpen) {
         aligned = 0;
-        return result(guidance ?? _eyes);
+        return result(guidance ?? _openEyes);
       }
       if (++aligned >= 2) status = LivenessStatus.open;
     } else if (status == LivenessStatus.open) {
       if (guidance != null) return _reset(guidance);
-      if (!o.eyesOpen) return result(_eyes);
+      if (!o.eyesOpen) return result(_openEyes);
       baseX = o.faceCenterX;
       baseY = o.faceCenterY;
       baseW = o.faceWidth;
       baseH = o.faceHeight;
       if (_uses(LivenessValidation.blink)) {
-        status = LivenessStatus.blink;
+        _beginBlink(now);
       } else if (_uses(LivenessValidation.passiveAntiSpoof) &&
           scores.length < 5) {
         return result('Tetap hadapkan wajah ke kamera');
@@ -115,30 +138,34 @@ class LivenessChallenge {
     } else if ((status == LivenessStatus.blink ||
             status == LivenessStatus.reopen) &&
         !_stable(o)) {
-      return _reset('Jaga wajah tetap pada jarak dan tinggi yang sama');
+      unstableSince ??= now;
+      return now.difference(unstableSince!) >= _inputGracePeriod
+          ? result('Jaga wajah tetap pada jarak dan tinggi yang sama')
+          : result();
     } else if (status == LivenessStatus.blink) {
+      unstableSince = null;
       if (!o.eyesOpen) {
-        closedAt = DateTime.now();
+        closedAt = now;
         status = LivenessStatus.reopen;
-        blinkWait = 0;
-      } else if (++blinkWait >= 4) {
-        blinkWait = 0;
+      } else if (now.difference(blinkStartedAt!) >=
+          const Duration(seconds: 5)) {
         return result('Kedipan belum terdeteksi. Coba kedip sekali lagi.');
+      } else {
+        _adaptBaseline(o);
       }
     } else if (status == LivenessStatus.reopen) {
-      if (DateTime.now().difference(closedAt!).inMilliseconds > 1500) {
-        status = LivenessStatus.blink;
-        reopened = 0;
-        return result('Kedipan belum terdeteksi. Coba kedip sekali lagi.');
+      unstableSince = null;
+      if (now.difference(closedAt!).inMilliseconds > 1500) {
+        _beginBlink(now);
+        return result();
       }
-      if (o.eyesOpen && ++reopened >= 2) {
+      if (o.eyesOpen) {
         if (_uses(LivenessValidation.headTurn)) {
           status = LivenessStatus.move;
         } else {
           return _finish();
         }
       }
-      if (!o.eyesOpen) reopened = 0;
     } else if (status == LivenessStatus.move) {
       if (o.yaw == null) {
         return result('Hadapkan wajah ke kamera agar arah wajah terbaca');
@@ -161,6 +188,38 @@ class LivenessChallenge {
 
   static const _eyes =
       'Mata belum terlihat jelas. Hadap kamera dan pastikan area mata tidak tertutup.';
+  static const _openEyes = 'Buka kedua mata dan lihat ke arah kamera.';
+
+  bool get _isActiveChallenge =>
+      status == LivenessStatus.blink ||
+      status == LivenessStatus.reopen ||
+      status == LivenessStatus.move;
+
+  LivenessResult _handleInputIssue(DateTime now, String message) {
+    if (!_isActiveChallenge) return _reset(message);
+    if (qualityIssue != message) {
+      qualityIssue = message;
+      qualityIssueSince = now;
+    }
+    return now.difference(qualityIssueSince!) >= _inputGracePeriod
+        ? result(message)
+        : result();
+  }
+
+  void _beginBlink(DateTime now) {
+    status = LivenessStatus.blink;
+    blinkStartedAt = now;
+    unstableSince = null;
+  }
+
+  void _adaptBaseline(LivenessObservation o) {
+    const weight = .08;
+    baseX = baseX! * (1 - weight) + o.faceCenterX * weight;
+    baseY = baseY! * (1 - weight) + o.faceCenterY * weight;
+    baseW = baseW! * (1 - weight) + o.faceWidth * weight;
+    baseH = baseH! * (1 - weight) + o.faceHeight * weight;
+  }
+
   bool _stable(LivenessObservation o) =>
       baseY != null &&
       (o.faceCenterY - baseY!).abs() <= .10 &&
@@ -183,9 +242,11 @@ class LivenessChallenge {
 
   LivenessResult _reset(String message) {
     status = LivenessStatus.align;
-    aligned = blinkWait = reopened = turned = returned = 0;
+    aligned = turned = returned = 0;
     baseX = baseY = baseW = baseH = baseYaw = null;
-    closedAt = null;
+    blinkStartedAt = closedAt = unstableSince = eyesMissingSince = null;
+    qualityIssueSince = null;
+    qualityIssue = null;
     scores.clear();
     return result(message);
   }
