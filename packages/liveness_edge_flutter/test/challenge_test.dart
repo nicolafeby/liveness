@@ -94,6 +94,88 @@ void main() {
     expect(result.passiveScore, isNull);
   });
 
+  test('ignores a transient eye-landmark loss during blink', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.blink}),
+    );
+
+    challenge.advance(front);
+    challenge.advance(front);
+    challenge.advance(front);
+    final result = challenge.advance(
+      const LivenessObservation(
+        faceCount: 1,
+        eyesDetected: false,
+        faceCenterX: .5,
+        faceCenterY: .5,
+        faceWidth: .4,
+        faceHeight: .5,
+      ),
+    );
+
+    expect(result.status, LivenessStatus.blink);
+    expect(result.instruction, 'Kedipkan kedua mata sekali.');
+  });
+
+  test('does not reset blink after one unstable frame', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.blink}),
+    );
+
+    challenge.advance(front);
+    challenge.advance(front);
+    challenge.advance(front);
+    final result = challenge.advance(
+      const LivenessObservation(
+        faceCount: 1,
+        eyesOpen: true,
+        faceCenterX: .62,
+        faceCenterY: .5,
+        faceWidth: .4,
+        faceHeight: .5,
+      ),
+    );
+
+    expect(result.status, LivenessStatus.blink);
+    expect(challenge.advance(front).status, LivenessStatus.blink);
+  });
+
+  test('keeps blink active while position correction is shown', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.blink}),
+    );
+    const unstable = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceCenterX: .65,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+    );
+
+    challenge.advance(front);
+    challenge.advance(front);
+    challenge.advance(front);
+    for (var i = 0; i < 10; i++) {
+      expect(challenge.advance(unstable).status, LivenessStatus.blink);
+    }
+    expect(challenge.advance(front).status, LivenessStatus.blink);
+  });
+
+  test('keeps active challenge when face is briefly lost', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.blink}),
+    );
+
+    challenge.advance(front);
+    challenge.advance(front);
+    challenge.advance(front);
+    final result = challenge.advance(const LivenessObservation(faceCount: 0));
+
+    expect(result.status, LivenessStatus.blink);
+    expect(result.instruction, 'Kedipkan kedua mata sekali.');
+  });
+
   test('collects enough scores for passive check when blink is disabled', () {
     final challenge = LivenessChallenge(
       const LivenessConfiguration(
