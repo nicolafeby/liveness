@@ -4,11 +4,10 @@ on:
   push:
     tags:
       - 'liveness-v*'
-      - 'liveness-edge-v*'
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Existing tag to release, for example liveness-v0.1.0 or liveness-edge-v0.1.0
+        description: Existing tag to release, for example liveness-v0.1.0
         required: true
         type: string
 
@@ -19,6 +18,9 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/liveness_verify_flutter
 
     steps:
       - name: Resolve release tag
@@ -35,22 +37,10 @@ jobs:
             tag="$PUSH_TAG"
           fi
           case "$tag" in
-            liveness-edge-v*)
-              package_dir='packages/liveness_edge_flutter'
-              tag_version="${tag#liveness-edge-v}"
-              ;;
-            liveness-v*)
-              package_dir='packages/liveness_verify_flutter'
-              tag_version="${tag#liveness-v}"
-              ;;
-            *)
-              echo 'Release tag must start with liveness-v or liveness-edge-v'
-              exit 1
-              ;;
+            liveness-v*) ;;
+            *) echo 'Release tag must start with liveness-v'; exit 1 ;;
           esac
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "tag_version=$tag_version" >> "$GITHUB_OUTPUT"
-          echo "package_dir=$package_dir" >> "$GITHUB_OUTPUT"
 
       - name: Checkout source
         uses: actions/checkout@v4
@@ -58,19 +48,19 @@ jobs:
           ref: ${{ steps.release.outputs.tag }}
 
       - name: Validate tag matches package version
-        working-directory: ${{ steps.release.outputs.package_dir }}
         env:
-          TAG_VERSION: ${{ steps.release.outputs.tag_version }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           package_version="$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml)"
+          tag_version="${RELEASE_TAG#liveness-v}"
 
           if [ -z "$package_version" ]; then
             echo 'No version found in pubspec.yaml'
             exit 1
           fi
 
-          if [ "$TAG_VERSION" != "$package_version" ]; then
-            echo "Tag version $TAG_VERSION does not match pubspec version $package_version"
+          if [ "$tag_version" != "$package_version" ]; then
+            echo "Tag version $tag_version does not match pubspec version $package_version"
             exit 1
           fi
 
@@ -88,24 +78,19 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        working-directory: ${{ steps.release.outputs.package_dir }}
         run: flutter pub get
 
       - name: Analyze
-        working-directory: ${{ steps.release.outputs.package_dir }}
         run: flutter analyze
 
       - name: Test
-        working-directory: ${{ steps.release.outputs.package_dir }}
         run: flutter test
 
       - name: Validate pub.dev package
-        working-directory: ${{ steps.release.outputs.package_dir }}
         run: dart pub publish --dry-run
 
       - name: Publish to pub.dev
         if: github.event_name == 'push'
-        working-directory: ${{ steps.release.outputs.package_dir }}
         run: dart pub publish --force
 
       - name: Publish GitHub Release
