@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../models/liveness_result.dart';
+import '../models/liveness_action.dart';
 import '../models/liveness_status.dart';
 import '../models/liveness_validation.dart';
 import '../models/observation.dart';
@@ -83,6 +84,11 @@ class LivenessMessages {
     this.reopenEyes = 'Open both eyes again.',
     this.returnToCamera = 'Face the camera again.',
     this.turnHead = 'Turn your head slightly left or right.',
+    this.turnLeft = 'Turn your head slightly to the left.',
+    this.turnRight = 'Turn your head slightly to the right.',
+    this.smile = 'Smile.',
+    this.openMouth = 'Open your mouth.',
+    this.returnToNeutral = 'Return to a neutral expression.',
     this.verificationComplete = 'Verification complete.',
     this.verificationFailed = 'Verification failed.',
     this.frontCameraUnavailable = 'Front camera is not available.',
@@ -124,6 +130,11 @@ class LivenessMessages {
   final String reopenEyes;
   final String returnToCamera;
   final String turnHead;
+  final String turnLeft;
+  final String turnRight;
+  final String smile;
+  final String openMouth;
+  final String returnToNeutral;
   final String verificationComplete;
   final String verificationFailed;
   final String frontCameraUnavailable;
@@ -148,8 +159,12 @@ class LivenessConfiguration {
     this.validations = const {
       LivenessValidation.blink,
       LivenessValidation.headTurn,
+      LivenessValidation.smile,
+      LivenessValidation.openMouth,
       LivenessValidation.passiveAntiSpoof,
     },
+    this.minimumActiveChallenges = 3,
+    this.maximumActiveChallenges = 4,
     this.timeout = const Duration(minutes: 2),
     this.maxFrames = 180,
     this.passiveAntiSpoofSensitivity = PassiveAntiSpoofSensitivity.balanced,
@@ -162,6 +177,12 @@ class LivenessConfiguration {
   /// Face count, lighting, alignment, and stability remain mandatory input
   /// quality checks regardless of this selection.
   final Set<LivenessValidation> validations;
+
+  /// Minimum number of randomly selected active challenges.
+  final int minimumActiveChallenges;
+
+  /// Maximum number of randomly selected active challenges.
+  final int maximumActiveChallenges;
 
   /// Maximum wall-clock duration of a session.
   final Duration timeout;
@@ -188,8 +209,11 @@ class LivenessConfiguration {
 }
 
 class LivenessChallenge {
-  LivenessChallenge([this.configuration = const LivenessConfiguration()])
-    : _started = DateTime.now() {
+  LivenessChallenge([
+    this.configuration = const LivenessConfiguration(),
+    math.Random? random,
+  ]) : _started = DateTime.now(),
+       _random = random ?? math.Random.secure() {
     if (configuration.validations.isEmpty) {
       throw ArgumentError.value(
         configuration.validations,
@@ -197,12 +221,44 @@ class LivenessChallenge {
         'At least one validation is required',
       );
     }
+    if (configuration.minimumActiveChallenges < 0 ||
+        configuration.maximumActiveChallenges <
+            configuration.minimumActiveChallenges) {
+      throw ArgumentError(
+        'Active challenge limits must be non-negative and ordered',
+      );
+    }
+    final candidates = <LivenessAction>[
+      if (_uses(LivenessValidation.blink)) LivenessAction.blink,
+      if (_uses(LivenessValidation.headTurn))
+        _random.nextBool() ? LivenessAction.turnLeft : LivenessAction.turnRight,
+      if (_uses(LivenessValidation.smile)) LivenessAction.smile,
+      if (_uses(LivenessValidation.openMouth)) LivenessAction.openMouth,
+    ]..shuffle(_random);
+    if (candidates.isNotEmpty) {
+      final minimum = math.min(
+        configuration.minimumActiveChallenges,
+        candidates.length,
+      );
+      final maximum = math.min(
+        configuration.maximumActiveChallenges,
+        candidates.length,
+      );
+      final count = minimum + _random.nextInt(maximum - minimum + 1);
+      _actions.addAll(candidates.take(count));
+    }
   }
   final LivenessConfiguration configuration;
   final DateTime _started;
+  final math.Random _random;
+  final List<LivenessAction> _actions = [];
+  List<LivenessAction> get actions => List.unmodifiable(_actions);
+  int actionIndex = 0;
+  int actionFrames = 0;
   LivenessStatus status = LivenessStatus.align;
   int frames = 0, aligned = 0, turned = 0, returned = 0;
   double? baseX, baseY, baseW, baseH, baseYaw;
+  double baseSmile = 0, baseMouthOpen = 0;
   DateTime? blinkStartedAt,
       closedAt,
       unstableSince,
@@ -213,6 +269,43 @@ class LivenessChallenge {
   final List<double> scores = [];
   List<double>? faceIdentity;
   int identityMismatches = 0;
+
+  /// Overall session progress, including alignment and randomized actions.
+  ///
+  /// Progress is derived from the action index rather than the current action
+  /// type, so moving between differently ordered actions never makes it go
+  /// backwards.
+  double get progress {
+    switch (status) {
+      case LivenessStatus.align:
+        return .08;
+      case LivenessStatus.open:
+        return .16;
+      case LivenessStatus.passed:
+        return 1;
+      case LivenessStatus.failed:
+        return 0;
+      case LivenessStatus.blink:
+      case LivenessStatus.smile:
+      case LivenessStatus.openMouth:
+        return _activeProgress(.25);
+      case LivenessStatus.reopen:
+      case LivenessStatus.returnNeutral:
+        return _activeProgress(.65);
+      case LivenessStatus.move:
+        return _activeProgress(turned >= 2 ? .65 : .25);
+    }
+  }
+
+  double _activeProgress(double phase) {
+    const activeStart = .20;
+    const activeShare = 1 - activeStart;
+    final total = math.max(_actions.length, 1);
+    return (activeStart + ((actionIndex + phase) / total) * activeShare).clamp(
+      0.0,
+      1.0,
+    );
+  }
 
   static const _inputGracePeriod = Duration(milliseconds: 750);
   static const _eyesGracePeriod = Duration(milliseconds: 500);
@@ -286,13 +379,14 @@ class LivenessChallenge {
       baseY = o.faceCenterY;
       baseW = o.faceWidth;
       baseH = o.faceHeight;
-      if (_uses(LivenessValidation.blink)) {
-        _beginBlink(now);
+      baseYaw = o.yaw;
+      baseSmile = o.smileScore ?? 0;
+      baseMouthOpen = o.mouthOpenScore ?? 0;
+      if (_actions.isNotEmpty) {
+        _beginAction(now);
       } else if (_uses(LivenessValidation.passiveAntiSpoof) &&
           scores.length < 5) {
         return result(configuration.messages.keepFacingCamera);
-      } else if (_uses(LivenessValidation.headTurn)) {
-        status = LivenessStatus.move;
       } else {
         return _finish();
       }
@@ -321,28 +415,56 @@ class LivenessChallenge {
         return result();
       }
       if (o.eyesOpen) {
-        if (_uses(LivenessValidation.headTurn)) {
-          status = LivenessStatus.move;
-        } else {
-          return _finish();
-        }
+        return _completeAction(now);
       }
     } else if (status == LivenessStatus.move) {
       if (o.yaw == null) {
         return result(configuration.messages.faceDirectionUnavailable);
       }
       baseYaw ??= o.yaw;
-      final delta = (o.yaw! - baseYaw!).abs();
+      final delta = o.yaw! - baseYaw!;
+      final expected = _actions[actionIndex] == LivenessAction.turnLeft
+          ? delta >= 15
+          : delta <= -15;
       if (turned < 2) {
-        turned = delta >= 15 ? turned + 1 : 0;
+        turned = expected ? turned + 1 : 0;
       } else {
-        returned = delta <= 8 && o.eyesOpen && guidance == null
+        returned = delta.abs() <= 8 && o.eyesOpen && guidance == null
             ? returned + 1
             : 0;
         if (returned >= 2) {
-          return _finish();
+          return _completeAction(now);
         }
       }
+    } else if (status == LivenessStatus.smile ||
+        status == LivenessStatus.openMouth) {
+      final score = status == LivenessStatus.smile
+          ? o.smileScore
+          : o.mouthOpenScore;
+      if (score == null) return result(configuration.messages.pleaseWait);
+      final baseline = status == LivenessStatus.smile
+          ? baseSmile
+          : baseMouthOpen;
+      final absoluteThreshold = status == LivenessStatus.smile ? .45 : .50;
+      final relativeThreshold = status == LivenessStatus.smile ? .25 : .30;
+      final detected =
+          score >= math.max(baseline + relativeThreshold, absoluteThreshold);
+      actionFrames = detected ? actionFrames + 1 : 0;
+      if (actionFrames >= 2) {
+        actionFrames = 0;
+        status = LivenessStatus.returnNeutral;
+      }
+    } else if (status == LivenessStatus.returnNeutral) {
+      final action = _actions[actionIndex];
+      final score = action == LivenessAction.smile
+          ? o.smileScore
+          : o.mouthOpenScore;
+      if (score == null) return result(configuration.messages.pleaseWait);
+      final baseline = action == LivenessAction.smile
+          ? baseSmile
+          : baseMouthOpen;
+      actionFrames = score <= baseline + .12 ? actionFrames + 1 : 0;
+      if (actionFrames >= 2) return _completeAction(now);
     }
     return result();
   }
@@ -388,7 +510,10 @@ class LivenessChallenge {
   bool get _isActiveChallenge =>
       status == LivenessStatus.blink ||
       status == LivenessStatus.reopen ||
-      status == LivenessStatus.move;
+      status == LivenessStatus.move ||
+      status == LivenessStatus.smile ||
+      status == LivenessStatus.openMouth ||
+      status == LivenessStatus.returnNeutral;
 
   LivenessResult _handleInputIssue(DateTime now, String message) {
     if (!_isActiveChallenge) return _reset(message);
@@ -405,6 +530,29 @@ class LivenessChallenge {
     status = LivenessStatus.blink;
     blinkStartedAt = now;
     unstableSince = null;
+  }
+
+  void _beginAction(DateTime now) {
+    actionFrames = turned = returned = 0;
+    switch (_actions[actionIndex]) {
+      case LivenessAction.blink:
+        _beginBlink(now);
+      case LivenessAction.turnLeft || LivenessAction.turnRight:
+        status = LivenessStatus.move;
+      case LivenessAction.smile:
+        status = LivenessStatus.smile;
+      case LivenessAction.openMouth:
+        status = LivenessStatus.openMouth;
+    }
+  }
+
+  LivenessResult _completeAction(DateTime now) {
+    actionIndex++;
+    if (actionIndex < _actions.length) {
+      _beginAction(now);
+      return result();
+    }
+    return _finish();
   }
 
   void _adaptBaseline(LivenessObservation o) {
@@ -438,6 +586,7 @@ class LivenessChallenge {
   LivenessResult _reset(String message) {
     status = LivenessStatus.align;
     aligned = turned = returned = 0;
+    actionIndex = actionFrames = 0;
     baseX = baseY = baseW = baseH = baseYaw = null;
     blinkStartedAt = closedAt = unstableSince = eyesMissingSince =
         faceMissingSince = null;
@@ -493,7 +642,13 @@ class LivenessChallenge {
           LivenessStatus.move =>
             turned >= 2
                 ? configuration.messages.returnToCamera
-                : configuration.messages.turnHead,
+                : _actions[actionIndex] == LivenessAction.turnLeft
+                ? configuration.messages.turnLeft
+                : configuration.messages.turnRight,
+          LivenessStatus.smile => configuration.messages.smile,
+          LivenessStatus.openMouth => configuration.messages.openMouth,
+          LivenessStatus.returnNeutral =>
+            configuration.messages.returnToNeutral,
           LivenessStatus.passed => configuration.messages.verificationComplete,
           LivenessStatus.failed => configuration.messages.verificationFailed,
         },

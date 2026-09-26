@@ -14,7 +14,8 @@ device; the package does not make network requests.
 ## Features
 
 - Ready-to-use camera screen with face-position guidance.
-- Active blink and head-turn challenge.
+- Three or four active challenges randomly selected from blink, turn left,
+  turn right, smile, and open mouth.
 - Passive presentation-attack score using MiniFASNetV2.
 - Native MediaPipe Face Landmarker and ONNX Runtime processing.
 - Final verified capture returned as JPEG bytes.
@@ -83,6 +84,8 @@ Future<LivenessResult?> captureLiveness(BuildContext context) async {
           validations: {
             LivenessValidation.blink,
             LivenessValidation.headTurn,
+            LivenessValidation.smile,
+            LivenessValidation.openMouth,
             LivenessValidation.passiveAntiSpoof,
           },
           timeout: Duration(minutes: 2),
@@ -119,6 +122,11 @@ const LivenessConfiguration(
     moveRight: 'Geser wajah ke kanan',
     moveLeft: 'Geser wajah ke kiri',
     blink: 'Kedipkan kedua mata sekali.',
+    turnLeft: 'Hadapkan kepala sedikit ke kiri.',
+    turnRight: 'Hadapkan kepala sedikit ke kanan.',
+    smile: 'Tersenyumlah.',
+    openMouth: 'Buka mulut.',
+    returnToNeutral: 'Kembali ke ekspresi netral.',
     tryAgain: 'Coba lagi',
   ),
 );
@@ -148,7 +156,9 @@ LivenessEdgeScreen(
 
 | Property | Default | Description |
 | --- | ---: | --- |
-| `validations` | All validations | Enabled checks: `blink`, `headTurn`, and/or `passiveAntiSpoof`. Face alignment and input-quality checks always run. |
+| `validations` | All validations | Enabled checks: `blink`, `headTurn`, `smile`, `openMouth`, and/or `passiveAntiSpoof`. `headTurn` adds separate left and right actions. |
+| `minimumActiveChallenges` | `3` | Minimum active actions selected per session, capped by the available pool. |
+| `maximumActiveChallenges` | `4` | Maximum active actions selected per session, capped by the available pool. |
 | `timeout` | 2 minutes | Maximum session duration. |
 | `maxFrames` | 180 | Maximum analyzed frames before failure. |
 | `passiveAntiSpoofSensitivity` | `balanced` | Anti-spoof preset: `low` (0.40), `balanced` (0.50), `high` (0.60), `strict` (0.70), or `withValue(...)` for a custom value from 0 to 1. |
@@ -157,9 +167,12 @@ LivenessEdgeScreen(
 
 Treat the default threshold as a starting point. Calibrate it using genuine
 users, target devices, lighting conditions, and representative attacks.
-At least one validation must be enabled. Disabled active challenges are skipped,
-so their instructions are not shown. Passive sensitivity is ignored when
-`passiveAntiSpoof` is disabled.
+At least one validation must be enabled. A session securely shuffles its active
+action pool and selects three or four actions without duplicates by default.
+Only the current instruction is displayed. Each gesture must be observed across
+multiple frames and return to its neutral pose before the next action starts.
+Disabled active challenges are skipped, so their instructions are not shown.
+Passive sensitivity is ignored when `passiveAntiSpoof` is disabled.
 
 The package keeps a frozen, normalized, on-device landmark descriptor for the
 first aligned face. If a different frontal face is detected in two consecutive
@@ -218,9 +231,9 @@ liveness_edge_flutter/
 ```text
 Flutter camera frame
   -> upright, downsampled BGR frame
-  -> MediaPipe Face Landmarker (bounds, blink, and head yaw)
+  -> MediaPipe Face Landmarker (bounds, blink, expression, and head yaw)
   -> MiniFASNetV2 through ONNX Runtime (passive live score)
-  -> challenge state machine (align, blink, turn, return)
+  -> challenge state machine (align, 3-4 randomized actions, neutral return)
   -> LivenessResult
 ```
 
