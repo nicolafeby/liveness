@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liveness_edge_flutter/src/core/challenge.dart';
+import 'package:liveness_edge_flutter/src/models/liveness_action.dart';
 import 'package:liveness_edge_flutter/src/models/liveness_result.dart';
 import 'package:liveness_edge_flutter/src/models/liveness_status.dart';
 import 'package:liveness_edge_flutter/src/models/liveness_validation.dart';
@@ -17,41 +20,198 @@ void main() {
     liveScore: .9,
   );
 
-  test('completes blink, turn, return, and passive challenge', () {
-    final challenge = LivenessChallenge();
-    challenge.advance(front);
-    challenge.advance(front);
-    challenge.advance(front);
-    expect(challenge.status, LivenessStatus.blink);
-    challenge.advance(
-      const LivenessObservation(
-        faceCount: 1,
-        faceCenterX: .5,
-        faceCenterY: .5,
-        faceWidth: .4,
-        faceHeight: .5,
-        yaw: 0,
-        liveScore: .9,
-      ),
+  test('selects three or four unique active challenges by default', () {
+    for (var seed = 0; seed < 30; seed++) {
+      final challenge = LivenessChallenge(
+        const LivenessConfiguration(),
+        math.Random(seed),
+      );
+
+      expect(challenge.actions.length, inInclusiveRange(3, 4));
+      expect(challenge.actions.toSet().length, challenge.actions.length);
+      expect(
+        challenge.actions
+            .where(
+              (action) =>
+                  action == LivenessAction.turnLeft ||
+                  action == LivenessAction.turnRight,
+            )
+            .length,
+        lessThanOrEqualTo(1),
+      );
+    }
+  });
+
+  test('maps front-camera yaw to the instructed head-turn direction', () {
+    final challenges = <LivenessAction, LivenessChallenge>{};
+    for (var seed = 0; seed < 100 && challenges.length < 2; seed++) {
+      final challenge = LivenessChallenge(
+        const LivenessConfiguration(validations: {LivenessValidation.headTurn}),
+        math.Random(seed),
+      );
+      challenges[challenge.actions.single] = challenge;
+    }
+
+    expect(challenges.keys, containsAll(LivenessAction.values.take(3).skip(1)));
+
+    for (final entry in challenges.entries) {
+      final challenge = entry.value;
+      final expectedYaw = entry.key == LivenessAction.turnLeft ? 20.0 : -20.0;
+      final oppositeYaw = -expectedYaw;
+
+      challenge.advance(front);
+      challenge.advance(front);
+      challenge.advance(front);
+
+      for (var i = 0; i < 2; i++) {
+        challenge.advance(
+          LivenessObservation(
+            faceCount: 1,
+            eyesOpen: true,
+            faceCenterX: .5,
+            faceCenterY: .5,
+            faceWidth: .4,
+            faceHeight: .5,
+            yaw: oppositeYaw,
+          ),
+        );
+      }
+      expect(challenge.turned, 0);
+
+      for (var i = 0; i < 3; i++) {
+        challenge.advance(
+          LivenessObservation(
+            faceCount: 1,
+            eyesOpen: true,
+            faceCenterX: .5,
+            faceCenterY: .5,
+            faceWidth: .4,
+            faceHeight: .5,
+            yaw: expectedYaw,
+          ),
+        );
+      }
+      expect(challenge.turned, 2);
+      challenge.advance(front);
+      expect(challenge.advance(front).status, LivenessStatus.passed);
+    }
+  });
+
+  test('progress never moves backwards across randomized actions', () {
+    for (var seed = 0; seed < 30; seed++) {
+      final challenge = LivenessChallenge(
+        const LivenessConfiguration(
+          minimumActiveChallenges: 4,
+          maximumActiveChallenges: 4,
+        ),
+        math.Random(seed),
+      );
+      var previous = challenge.progress;
+
+      challenge.status = LivenessStatus.open;
+      expect(challenge.progress, greaterThan(previous));
+      previous = challenge.progress;
+
+      for (var index = 0; index < challenge.actions.length; index++) {
+        challenge.actionIndex = index;
+        challenge.turned = 0;
+        challenge.status = switch (challenge.actions[index]) {
+          LivenessAction.blink => LivenessStatus.blink,
+          LivenessAction.turnLeft ||
+          LivenessAction.turnRight => LivenessStatus.move,
+          LivenessAction.smile => LivenessStatus.smile,
+          LivenessAction.openMouth => LivenessStatus.openMouth,
+        };
+        expect(challenge.progress, greaterThan(previous));
+        previous = challenge.progress;
+
+        if (challenge.status == LivenessStatus.move) {
+          challenge.turned = 2;
+        } else {
+          challenge.status = challenge.status == LivenessStatus.blink
+              ? LivenessStatus.reopen
+              : LivenessStatus.returnNeutral;
+        }
+        expect(challenge.progress, greaterThan(previous));
+        previous = challenge.progress;
+      }
+
+      challenge.status = LivenessStatus.passed;
+      expect(challenge.progress, greaterThan(previous));
+      expect(challenge.progress, 1);
+    }
+  });
+
+  test('completes smile after activation and return to neutral', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.smile}),
     );
-    challenge.advance(front);
-    challenge.advance(front);
-    expect(challenge.status, LivenessStatus.move);
-    challenge.advance(front);
-    const turned = LivenessObservation(
+    const neutral = LivenessObservation(
       faceCount: 1,
       eyesOpen: true,
       faceCenterX: .5,
       faceCenterY: .5,
       faceWidth: .4,
       faceHeight: .5,
-      yaw: 20,
-      liveScore: .9,
+      yaw: 0,
+      smileScore: .05,
     );
-    challenge.advance(turned);
-    challenge.advance(turned);
-    challenge.advance(front);
-    expect(challenge.advance(front).status, LivenessStatus.passed);
+    const smiling = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+      smileScore: .8,
+    );
+
+    challenge.advance(neutral);
+    challenge.advance(neutral);
+    challenge.advance(neutral);
+    expect(challenge.status, LivenessStatus.smile);
+    challenge.advance(smiling);
+    challenge.advance(smiling);
+    expect(challenge.status, LivenessStatus.returnNeutral);
+    challenge.advance(neutral);
+    expect(challenge.advance(neutral).status, LivenessStatus.passed);
+  });
+
+  test('completes open-mouth after activation and return to neutral', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.openMouth}),
+    );
+    const neutral = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+      mouthOpenScore: .05,
+    );
+    const open = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+      mouthOpenScore: .9,
+    );
+
+    challenge.advance(neutral);
+    challenge.advance(neutral);
+    challenge.advance(neutral);
+    expect(challenge.status, LivenessStatus.openMouth);
+    challenge.advance(open);
+    challenge.advance(open);
+    expect(challenge.status, LivenessStatus.returnNeutral);
+    challenge.advance(neutral);
+    expect(challenge.advance(neutral).status, LivenessStatus.passed);
   });
 
   test('skips blink when it is disabled', () {

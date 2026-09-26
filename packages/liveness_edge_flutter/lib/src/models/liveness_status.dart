@@ -15,6 +15,15 @@ enum LivenessStatus {
   /// The user must turn their head and then face forward again.
   move,
 
+  /// The user must smile and then return to a neutral expression.
+  smile,
+
+  /// The user must open their mouth and then close it again.
+  openMouth,
+
+  /// The user must return to the neutral pose after an active gesture.
+  returnNeutral,
+
   /// Active and passive liveness checks succeeded.
   passed,
 

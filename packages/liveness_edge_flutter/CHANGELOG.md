@@ -1,3 +1,9 @@
+## Next
+
+- Randomly select three or four active challenges per session from blink, turn
+  left, turn right, smile, and open mouth.
+- Validate smile and open-mouth transitions with MediaPipe blendshapes.
+
 ## 0.1.0
 
 - Initial offline Android and iOS implementation.
