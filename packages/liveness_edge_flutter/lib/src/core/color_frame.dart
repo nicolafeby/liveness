@@ -111,10 +111,16 @@ Uint8List _encodeBgraFrame(CameraImage frame, int rotation) {
   if (pixelStride < 4) {
     throw const FormatException('The camera pixel format is not supported.');
   }
-  final step = (math.max(frame.width, frame.height) / streamedFrameMaxDimension)
-      .ceil();
-  final sourceWidth = (frame.width + step - 1) ~/ step;
-  final sourceHeight = (frame.height + step - 1) ~/ step;
+  // iOS commonly supplies a 480x640 BGRA stream. Integer stepping would use
+  // every second pixel and unnecessarily reduce that to 240x320. Scale to the
+  // configured bound instead, preserving substantially more landmark detail.
+  // The YUV/NV21 path above intentionally remains unchanged for Android.
+  final scale = math.min(
+    1.0,
+    streamedFrameMaxDimension / math.max(frame.width, frame.height),
+  );
+  final sourceWidth = math.max(1, (frame.width * scale).round());
+  final sourceHeight = math.max(1, (frame.height * scale).round());
   final width = rotation == 90 || rotation == 270 ? sourceHeight : sourceWidth;
   final height = rotation == 90 || rotation == 270 ? sourceWidth : sourceHeight;
   final output = Uint8List(8 + width * height * 3);
@@ -125,7 +131,12 @@ Uint8List _encodeBgraFrame(CameraImage frame, int rotation) {
   output[7] = height & 255;
   for (var y = 0; y < sourceHeight; y++) {
     for (var x = 0; x < sourceWidth; x++) {
-      final offset = y * step * plane.bytesPerRow + x * step * pixelStride;
+      final sourceX = math.min(frame.width - 1, x * frame.width ~/ sourceWidth);
+      final sourceY = math.min(
+        frame.height - 1,
+        y * frame.height ~/ sourceHeight,
+      );
+      final offset = sourceY * plane.bytesPerRow + sourceX * pixelStride;
       if (offset + 2 >= plane.bytes.length) {
         throw const FormatException('The camera color data is incomplete.');
       }
