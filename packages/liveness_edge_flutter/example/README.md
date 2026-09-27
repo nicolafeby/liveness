@@ -1,17 +1,25 @@
-# liveness_edge_flutter_example
+# Liveness Edge Flutter example
 
-Demonstrates how to use the liveness_edge_flutter plugin.
+Demonstrates the ready-to-use `LivenessEdgeScreen` from
+`liveness_edge_flutter`, including:
 
-## Getting Started
+- strict passive anti-spoof and face-continuity sensitivity presets;
+- custom instruction and supporting-text styles;
+- a custom retry button;
+- success and failure callbacks; and
+- display of the verified JPEG returned on success.
 
-This project is a starting point for a Flutter application.
+## Run the example
 
-A few resources to get you started if this is your first Flutter project:
+Use a physical Android or iOS device with a front-facing camera:
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```sh
+flutter pub get
+flutter run
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+The native face-landmark and anti-spoof models are bundled by the package. No
+backend or network connection is required. Grant camera access when prompted.
+
+See the [package README](../README.md) for installation, platform setup,
+configuration, result fields, and security guidance.
