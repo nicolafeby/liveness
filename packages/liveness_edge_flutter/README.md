@@ -4,8 +4,9 @@
 [![license: MIT](https://img.shields.io/badge/license-MIT-0175C2.svg)](LICENSE)
 ![platform: Android and iOS](https://img.shields.io/badge/platform-Android%20%7C%20iOS-3DDC84.svg)
 ![processing: offline on-device](https://img.shields.io/badge/processing-offline%20%7C%20on--device-14B8A6.svg)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy_Me_a_Coffee-support-FFDD00.svg?logo=buy-me-a-coffee&logoColor=000000)](https://buymeacoffee.com/nicolafsalv)
 
-![Liveness Edge Flutter: private, offline face-liveness verification](doc/assets/liveness-edge-banner-v2.png)
+![Liveness Edge Flutter: on-device processing, randomized active challenges, passive anti-spoofing, and face continuity](doc/assets/liveness-edge-banner-v2.png)
 
 Private, offline face-liveness verification for Flutter. Camera frames, face
 landmarks, active challenges, and passive anti-spoofing are processed on the
@@ -14,11 +15,13 @@ device; the package does not make network requests.
 ## Features
 
 - Ready-to-use camera screen with face-position guidance.
-- Three or four active challenges randomly selected from blink, turn left,
-  turn right, smile, and open mouth.
+- Three or four active challenges randomly selected from blink, one randomly
+  directed head turn, smile, and open mouth.
 - Passive presentation-attack score using MiniFASNetV2.
+- Same-face continuity checks using normalized facial landmarks.
 - Native MediaPipe Face Landmarker and ONNX Runtime processing.
 - Final verified capture returned as JPEG bytes.
+- Localizable messages and customizable guidance, supporting text, and retry UI.
 - Android and iOS support with bundled models; no backend required.
 
 ## Platform support
@@ -42,7 +45,7 @@ Alternatively, add it directly to `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  liveness_edge_flutter: ^0.1.0
+  liveness_edge_flutter: ^0.2.0
 ```
 
 ### Android setup
@@ -156,7 +159,7 @@ LivenessEdgeScreen(
 
 | Property | Default | Description |
 | --- | ---: | --- |
-| `validations` | All validations | Enabled checks: `blink`, `headTurn`, `smile`, `openMouth`, and/or `passiveAntiSpoof`. `headTurn` adds separate left and right actions. |
+| `validations` | All validations | Enabled checks: `blink`, `headTurn`, `smile`, `openMouth`, and/or `passiveAntiSpoof`. `headTurn` randomly chooses either a left or right turn for the session. |
 | `minimumActiveChallenges` | `3` | Minimum active actions selected per session, capped by the available pool. |
 | `maximumActiveChallenges` | `4` | Maximum active actions selected per session, capped by the available pool. |
 | `timeout` | 2 minutes | Maximum session duration. |
@@ -169,6 +172,10 @@ Treat the default threshold as a starting point. Calibrate it using genuine
 users, target devices, lighting conditions, and representative attacks.
 At least one validation must be enabled. A session securely shuffles its active
 action pool and selects three or four actions without duplicates by default.
+Because `headTurn` contributes one randomly directed action, the default pool
+contains four active actions. If fewer active validations are enabled, the
+configured minimum and maximum are capped to the number available. A
+passive-only session is also supported by enabling only `passiveAntiSpoof`.
 Only the current instruction is displayed. Each gesture must be observed across
 multiple frames and return to its neutral pose before the next action starts.
 Disabled active challenges are skipped, so their instructions are not shown.
@@ -192,6 +199,17 @@ challenge starts, the grace period remains two seconds.
   attempts to pop its route automatically.
 - A failed or timed-out session shows a retry action. Camera or model errors do
   not invoke `onFailed`, because they do not produce a final liveness result.
+
+### Result fields
+
+| Property | Availability | Description |
+| --- | --- | --- |
+| `status` | Always | Current or terminal `LivenessStatus`. A terminal result is either `passed` or `failed`. |
+| `passed` | Always | Convenience getter that is `true` only when `status` is `passed`. |
+| `instruction` | Always | Localized guidance or the terminal result message. |
+| `framesProcessed` | Always | Number of analyzed frames in the current attempt. |
+| `imageBytes` | Success only | Mirrored, portrait-normalized JPEG cropped to the face-guide aspect ratio. |
+| `passiveScore` | Terminal result when passive anti-spoofing is enabled | Median of the recent on-device live-score samples. Higher values are considered more likely to be live. |
 
 ## How it works
 
@@ -233,7 +251,8 @@ Flutter camera frame
   -> upright, downsampled BGR frame
   -> MediaPipe Face Landmarker (bounds, blink, expression, and head yaw)
   -> MiniFASNetV2 through ONNX Runtime (passive live score)
-  -> challenge state machine (align, 3-4 randomized actions, neutral return)
+  -> challenge state machine (align, 3-4 randomized actions, neutral return,
+     same-face continuity)
   -> LivenessResult
 ```
 
@@ -283,3 +302,8 @@ flutter run
 
 Bug reports and feature requests are welcome in the project
 [issue tracker](https://github.com/nicolafeby/liveness/issues).
+
+## Support
+
+If this package is useful to you, you can support its development through
+[Buy Me a Coffee](https://buymeacoffee.com/nicolafsalv).

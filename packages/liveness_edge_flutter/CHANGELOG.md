@@ -1,7 +1,7 @@
-## Next
+## 0.2.0
 
-- Randomly select three or four active challenges per session from blink, turn
-  left, turn right, smile, and open mouth.
+- Randomly select three or four active challenges per session from blink, one
+  randomly directed head turn, smile, and open mouth.
 - Validate smile and open-mouth transitions with MediaPipe blendshapes.
 
 ## 0.1.0
