@@ -18,8 +18,8 @@ typedef LivenessRetryButtonBuilder =
 
 /// A full-screen, ready-to-use on-device liveness capture flow.
 ///
-/// The widget opens the front camera, guides the user through a blink and head
-/// turn, invokes [onSuccess] after both active and passive checks pass, or
+/// The widget opens the front camera, guides the user through randomized active
+/// challenges, invokes [onSuccess] after active and passive checks pass, or
 /// invokes [onFailed] when verification reaches a terminal failure.
 class LivenessEdgeScreen extends StatefulWidget {
   /// Creates a liveness capture screen.
@@ -296,7 +296,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
                       _FaceCaptureGuide(
                         size: guideSize,
                         camera: camera,
-                        progress: _progressFor(status),
+                        progress: status == null ? 0 : _challenge.progress,
                         completed: status == LivenessStatus.passed,
                       ),
                       const Spacer(flex: 1),
@@ -374,17 +374,6 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
     );
   }
 
-  double _progressFor(LivenessStatus? status) => switch (status) {
-    null => 0,
-    LivenessStatus.align => .16,
-    LivenessStatus.open => .32,
-    LivenessStatus.blink => .52,
-    LivenessStatus.reopen => .68,
-    LivenessStatus.move => .84,
-    LivenessStatus.passed => 1,
-    LivenessStatus.failed => 0,
-  };
-
   String _supportingText(LivenessStatus? status) {
     final messages = widget.configuration.messages;
     if (_error != null) return messages.cameraPermissionHelp;
@@ -393,7 +382,10 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
       LivenessStatus.align ||
       LivenessStatus.open => messages.positionFaceInFrame,
       LivenessStatus.blink || LivenessStatus.reopen => messages.holdStill,
-      LivenessStatus.move => messages.moveSlowly,
+      LivenessStatus.move ||
+      LivenessStatus.smile ||
+      LivenessStatus.openMouth ||
+      LivenessStatus.returnNeutral => messages.moveSlowly,
       LivenessStatus.passed => messages.faceVerified,
       LivenessStatus.failed => messages.verificationUnsuccessful,
     };

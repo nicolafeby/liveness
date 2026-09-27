@@ -9,6 +9,8 @@ class LivenessObservation {
     this.faceHeight = 0,
     this.lighting,
     this.yaw,
+    this.smileScore,
+    this.mouthOpenScore,
     this.liveScore,
     this.faceIdentity,
   });
@@ -22,6 +24,8 @@ class LivenessObservation {
   final double faceHeight;
   final String? lighting;
   final double? yaw;
+  final double? smileScore;
+  final double? mouthOpenScore;
   final double? liveScore;
   final List<double>? faceIdentity;
 
@@ -37,6 +41,8 @@ class LivenessObservation {
         faceHeight: (map['faceHeight'] as num?)?.toDouble() ?? 0,
         lighting: map['lighting'] as String?,
         yaw: (map['yaw'] as num?)?.toDouble(),
+        smileScore: (map['smileScore'] as num?)?.toDouble(),
+        mouthOpenScore: (map['mouthOpenScore'] as num?)?.toDouble(),
         liveScore: (map['liveScore'] as num?)?.toDouble(),
         faceIdentity: (map['faceIdentity'] as List<Object?>?)
             ?.map((value) => (value as num).toDouble())
