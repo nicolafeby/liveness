@@ -92,7 +92,7 @@ Future<LivenessResult?> captureLiveness(BuildContext context) async {
             LivenessValidation.passiveAntiSpoof,
           },
           timeout: Duration(minutes: 2),
-          maxFrames: 180,
+          maxFrames: 3000,
           passiveAntiSpoofSensitivity: PassiveAntiSpoofSensitivity.high,
           faceIdentitySensitivity: FaceIdentitySensitivity.strict,
         ),
@@ -163,7 +163,7 @@ LivenessEdgeScreen(
 | `minimumActiveChallenges` | `3` | Minimum active actions selected per session, capped by the available pool. |
 | `maximumActiveChallenges` | `4` | Maximum active actions selected per session, capped by the available pool. |
 | `timeout` | 2 minutes | Maximum session duration. |
-| `maxFrames` | 180 | Maximum analyzed frames before failure. |
+| `maxFrames` | 3000 | Safety cap for analyzed frames. Wall-clock duration is controlled by `timeout`. |
 | `passiveAntiSpoofSensitivity` | `balanced` | Anti-spoof preset: `low` (0.40), `balanced` (0.50), `high` (0.60), `strict` (0.70), or `withValue(...)` for a custom value from 0 to 1. |
 | `faceIdentitySensitivity` | `balanced` | Face replacement preset: `low` (0.16), `balanced` (0.10), `high` (0.06), `strict` (0.035), or `withValue(...)` for a custom value greater than 0. |
 | `messages` | English `LivenessMessages` | User-facing challenge instructions and screen labels. Override individual values to localize the flow. |
@@ -185,7 +185,7 @@ The package keeps a frozen, normalized, on-device landmark descriptor for the
 first aligned face. If a different frontal face is detected in two consecutive
 frames, the active challenge returns to alignment. A session cannot pass while
 an identity mismatch is pending. If no valid single face is detected during an
-active challenge for 400 ms, the flow also returns to alignment. Before a
+active challenge for 1.2 seconds, the flow also returns to alignment. Before a
 challenge starts, the grace period remains two seconds.
 
 ### Callback behavior

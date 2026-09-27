@@ -1,3 +1,15 @@
+## Unreleased
+
+- Prevent fast iOS devices from exhausting the analyzed-frame safety cap well
+  before the configured session timeout.
+- Tolerate brief face-landmarker dropouts during active challenges while still
+  enforcing same-face identity when detection resumes.
+- Preserve more landmark detail when downscaling iOS BGRA camera frames without
+  changing the Android YUV/NV21 conversion path.
+- Normalize front-camera yaw on iOS so left and right head-turn instructions
+  match the user's physical direction.
+- Clear the failure snackbar when retrying in the example application.
+
 ## 0.2.0
 
 - Randomly select three or four active challenges per session from blink, one

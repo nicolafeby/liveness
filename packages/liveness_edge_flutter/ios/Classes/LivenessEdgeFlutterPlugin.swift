@@ -86,7 +86,11 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
     let offset=((nose.x-(left.x+right.x)/2)*dx+(nose.y-(left.y+right.y)/2)*dy)/(dx*dx+dy*dy)
     var output:[String:Any] = ["faceCount":1,"eyesDetected":eyesDetected,"eyesOpen":eyesOpen,"faceCenterX":Double((minX+maxX)/2),
       "faceCenterY":Double((minY+maxY)/2),"faceWidth":Double(maxX-minX),"faceHeight":Double(maxY-minY),
-      "yaw":Double(atan2(2*offset,1))*180/Double.pi,"smileScore":Double(smileScore),
+      // camera_avfoundation's front-camera BGRA coordinates produce the
+      // opposite yaw sign from the user-facing left/right convention used by
+      // the Dart challenge (and by Android's camera stream). Normalize it at
+      // the platform boundary so "turn left" follows the user's own left.
+      "yaw":-Double(atan2(2*offset,1))*180/Double.pi,"smileScore":Double(smileScore),
       "mouthOpenScore":Double(mouthOpenScore),"liveScore":try passive(data,width,height,minX,minY,maxX,maxY),
       "faceIdentity":faceIdentity(points)]
     let mean = luminance(data,width,height,minX,minY,maxX,maxY)

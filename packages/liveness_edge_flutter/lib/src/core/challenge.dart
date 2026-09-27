@@ -166,7 +166,7 @@ class LivenessConfiguration {
     this.minimumActiveChallenges = 3,
     this.maximumActiveChallenges = 4,
     this.timeout = const Duration(minutes: 2),
-    this.maxFrames = 180,
+    this.maxFrames = 3000,
     this.passiveAntiSpoofSensitivity = PassiveAntiSpoofSensitivity.balanced,
     this.faceIdentitySensitivity = FaceIdentitySensitivity.balanced,
     this.messages = const LivenessMessages(),
@@ -309,7 +309,11 @@ class LivenessChallenge {
 
   static const _inputGracePeriod = Duration(milliseconds: 750);
   static const _eyesGracePeriod = Duration(milliseconds: 500);
-  static const _activeFaceLossGracePeriod = Duration(milliseconds: 400);
+  // Face landmarks can briefly disappear during a blink or head turn,
+  // especially on front-camera frames affected by motion blur. Keep the
+  // challenge active through a short detector dropout; identity matching is
+  // still applied when a face returns, so this does not permit a face swap.
+  static const _activeFaceLossGracePeriod = Duration(milliseconds: 1200);
   static const _idleFaceLossGracePeriod = Duration(seconds: 2);
 
   bool _uses(LivenessValidation validation) =>

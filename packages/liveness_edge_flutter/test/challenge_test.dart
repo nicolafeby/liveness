@@ -330,6 +330,10 @@ void main() {
     challenge.advance(front);
     challenge.advance(front);
     challenge.advance(front);
+    challenge.advance(const LivenessObservation(faceCount: 0));
+    challenge.faceMissingSince = DateTime.now().subtract(
+      const Duration(milliseconds: 800),
+    );
     final result = challenge.advance(const LivenessObservation(faceCount: 0));
 
     expect(result.status, LivenessStatus.blink);
@@ -348,12 +352,28 @@ void main() {
 
     challenge.advance(const LivenessObservation(faceCount: 0));
     challenge.faceMissingSince = DateTime.now().subtract(
-      const Duration(milliseconds: 400),
+      const Duration(milliseconds: 1200),
     );
     final reset = challenge.advance(const LivenessObservation(faceCount: 0));
 
     expect(reset.status, LivenessStatus.align);
     expect(reset.instruction, contains('continuity was lost'));
+  });
+
+  test('does not fail a normal-speed session after 180 analyzed frames', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.blink}),
+    );
+
+    challenge.advance(front);
+    challenge.advance(front);
+    challenge.advance(front);
+    for (var i = 0; i < 180; i++) {
+      challenge.advance(front);
+    }
+
+    expect(challenge.status, LivenessStatus.blink);
+    expect(challenge.frames, 183);
   });
 
   test('cancels face-missing timer when face returns', () {
