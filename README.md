@@ -1,76 +1,219 @@
-# Liveness Detection
+# Flutter Face Liveness
 
-An end-to-end system that verifies whether the face in front of a camera belongs to a live, active user rather than a static image. The project combines a Flutter application for capturing camera frames with a FastAPI/OpenCV API that processes the liveness challenge.
+This repository provides two Flutter packages for guided face-liveness
+verification. Choose between fully on-device processing and server-assisted
+verification according to your privacy, deployment, and performance needs.
 
-## Key Features
+## Packages
 
-- Real-time camera guidance for position, distance, face count, and lighting.
-- Sequential active liveness checks: align the face, keep the eyes open, blink, turn, and face the camera again.
-- Passive anti-spoofing over multiple frames using MiniFASNetV2 ONNX.
-- Face and eye detection with OpenCV Haar cascades, plus face-direction estimation from YuNet landmarks.
-- HTTP session creation and WebSocket frame streaming between the mobile app and backend.
-- In-memory frame processing; the backend does not save frames.
-- Unit tests for the state machine, detectors, streaming protocol, frame conversion, and API client.
-- Docker backend deployment and Android APK distribution through Firebase App Distribution.
+| Package | Processing | Network | Active challenges | Passive anti-spoofing | Platforms |
+| --- | --- | --- | --- | --- | --- |
+| [`liveness_edge_flutter`](packages/liveness_edge_flutter/) | On device | Not required | Randomized blink, head turn, smile, and open mouth | MiniFASNetV2 through native ONNX Runtime | Android API 24+ and iOS 15.1+ |
+| [`liveness_verify_flutter`](packages/liveness_verify_flutter/) | Server assisted | HTTP and WebSocket | Align, blink, head turn, and return to center | MiniFASNetV2 on a compatible backend | Android and iOS |
+
+Both packages include a ready-to-use front-camera screen, user guidance, camera
+lifecycle handling, and a verified JPEG result. They differ primarily in where
+face analysis and the final liveness decision run.
+
+### Liveness Edge Flutter
+
+[`liveness_edge_flutter`](packages/liveness_edge_flutter/README.md) keeps camera
+frames, facial landmarks, active challenge state, and passive anti-spoofing on
+the device. It bundles native MediaPipe Face Landmarker and ONNX Runtime models
+for Android and iOS and does not make network requests.
+
+Choose it when:
+
+- face frames must remain on the device;
+- the flow must work offline;
+- Android API 24 and iOS 15.1 are acceptable minimum versions; and
+- the application can accommodate the bundled native models and inference
+  workload.
+
+Install it with:
+
+```sh
+flutter pub add liveness_edge_flutter
+```
+
+Basic usage:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:liveness_edge_flutter/liveness_edge_flutter.dart';
+
+Future<LivenessResult?> verifyOnDevice(BuildContext context) async {
+  LivenessResult? verifiedResult;
+
+  await Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (routeContext) => LivenessEdgeScreen(
+        configuration: const LivenessConfiguration(
+          passiveAntiSpoofSensitivity: PassiveAntiSpoofSensitivity.high,
+        ),
+        onSuccess: (result) {
+          verifiedResult = result;
+          Navigator.of(routeContext).pop();
+        },
+        onFailed: (result) {
+          debugPrint('Liveness failed: ${result.instruction}');
+        },
+      ),
+    ),
+  );
+
+  return verifiedResult;
+}
+```
+
+See the [package documentation](packages/liveness_edge_flutter/README.md) for
+platform setup, localization, challenge selection, sensitivity presets,
+callbacks, and security considerations.
+
+### Liveness Verify Flutter
+
+[`liveness_verify_flutter`](packages/liveness_verify_flutter/README.md) is a
+lighter client that streams camera frames to a compatible backend. The backend
+performs face analysis, maintains the challenge state, and calculates the
+passive anti-spoofing result. A reference FastAPI implementation is included in
+[`backend/`](backend/).
+
+Choose it when:
+
+- liveness decisions should be controlled by a trusted server;
+- models and thresholds need to evolve without releasing the mobile app;
+- sending biometric frames to your backend is allowed; and
+- the device has reliable access to an HTTPS/WSS endpoint.
+
+Install it with:
+
+```sh
+flutter pub add liveness_verify_flutter
+```
+
+Basic usage:
+
+```dart
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+import 'package:liveness_verify_flutter/liveness_verify_flutter.dart';
+
+Future<void> verifyWithBackend(BuildContext context) async {
+  await Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (routeContext) => LivenessScreen(
+        baseUrl: 'https://liveness.example.com',
+        onSuccess: (Uint8List imageBytes) {
+          Navigator.of(routeContext).pop();
+          // Continue with the verified JPEG.
+        },
+      ),
+    ),
+  );
+}
+```
+
+See the [package documentation](packages/liveness_verify_flutter/README.md) for
+backend URL resolution, platform permissions, API behavior, and deployment
+guidance.
 
 ## Architecture
 
+### On-device package
+
 ```text
 Flutter front camera
-       │
-       │ LVC1 BGR frames (WebSocket)
-       ▼
-FastAPI ──► OpenCV Haar / YuNet ──► face, eye, light, and direction observations
-       │
-       ├──► MiniFASNetV2 ─────────► passive anti-spoofing score
-       │
-       └──► state machine ────────► instruction / passed / failed
-                    │
-                    └─────────────► Flutter UI
+  -> upright BGR frame
+  -> native MediaPipe Face Landmarker
+  -> native ONNX Runtime / MiniFASNetV2
+  -> Dart randomized challenge state machine
+  -> LivenessResult and verified JPEG
 ```
 
-The verification flow is:
+No face frames leave the application unless the host application explicitly
+stores or transmits the result.
 
-1. One face must remain centered at an appropriate size for two frames.
-2. Both eyes must be visible, after which the user is asked to blink.
-3. The eyes must reopen for two frames within 1.5 seconds.
-4. The user turns slightly left or right for two frames, then faces the camera again for two frames.
-5. The challenge passes only when at least five passive anti-spoofing samples are available and the median real-face score reaches the `0.5` threshold.
+### Server-assisted package
 
-Sessions last 120 seconds, are limited to 180 frames, and accept frames at a minimum interval of 80 ms. The mobile app sends more frequently during the blink stage (about 100 ms) and about every 300 ms during other stages.
+```text
+Flutter front camera
+  -> liveness_verify_flutter
+  -> HTTP session + WebSocket LVC1 frames
+  -> FastAPI / OpenCV / YuNet / MiniFASNetV2
+  -> challenge response
+  -> verified JPEG callback
+```
+
+The reference backend processes frames in memory. Production operators remain
+responsible for transport security, authentication, retention policy, and
+infrastructure controls.
+
+## Platform Setup
+
+Both packages require camera permission.
+
+Android (`android/app/src/main/AndroidManifest.xml`):
+
+```xml
+<uses-permission android:name="android.permission.CAMERA" />
+```
+
+The server-assisted package also needs internet permission:
+
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+```
+
+iOS (`ios/Runner/Info.plist`):
+
+```xml
+<key>NSCameraUsageDescription</key>
+<string>The camera is used to verify that you are physically present.</string>
+```
+
+Use HTTPS/WSS in production. Local cleartext endpoints may require Android
+network-security or iOS App Transport Security configuration.
 
 ## Repository Structure
 
 ```text
 .
-├── backend/                 # FastAPI, state machine, OpenCV, and ONNX models
-│   ├── main.py              # HTTP and WebSocket endpoints
-│   ├── challenge.py         # Challenge rules and state
-│   ├── detector.py          # Face, eye, light, yaw, and anti-spoofing detection
-│   ├── *_test.py            # Backend tests
-│   ├── Dockerfile
-│   └── README.md            # Algorithm, API, and backend deployment details
-├── mobile/                  # Flutter application
-│   ├── lib/core/            # API client and camera-frame encoding
-│   ├── lib/liveness/        # BLoC, models, and liveness screen
-│   ├── test/                # Flutter tests
-│   └── README.md            # CI and Firebase App Distribution details
-├── script/run-backend.sh    # Local backend + adb reverse
-└── .github/workflows/       # Backend deployment and mobile pipelines
+├── packages/
+│   ├── liveness_edge_flutter/     # Offline, native on-device package
+│   │   ├── android/               # Android MediaPipe and ONNX plugin
+│   │   ├── ios/                   # iOS MediaPipe and ONNX plugin
+│   │   ├── lib/                   # Public API, UI, and challenge state
+│   │   ├── test/                  # State-machine and frame tests
+│   │   └── example/               # Runnable Android/iOS example
+│   └── liveness_verify_flutter/   # Server-assisted Flutter package
+│       ├── lib/                   # UI, BLoC, API, and frame streaming
+│       └── test/                  # Client and frame tests
+├── backend/                       # Reference FastAPI liveness backend
+├── mobile/                        # Reference app for server-assisted package
+├── script/run-backend.sh          # Local backend and adb reverse helper
+└── .github/workflows/             # Test, release, and deployment workflows
 ```
 
-## Prerequisites
+## Running the Examples
 
-- A Python version compatible with `backend/requirements.txt` (the Docker image uses Python 3.12).
-- Flutter 3.41.6 and its matching Dart version; Flutter is pinned through `mobile/.fvmrc`.
-- The Android SDK and an Android device with USB debugging for the simplest local workflow.
-- `adb` available on `PATH`.
+### On-device example
 
-The iOS project structure and camera permission are configured, but the repository's current build and distribution automation targets Android.
+No backend is required:
 
-## Running Locally
+```sh
+cd packages/liveness_edge_flutter
+flutter pub get
+cd example
+flutter run
+```
 
-### 1. Set Up the Backend
+Use a physical Android or iOS device for meaningful camera and native-inference
+testing.
+
+### Server-assisted example
+
+Create the backend environment:
 
 ```sh
 cd backend
@@ -80,160 +223,85 @@ pip install -r requirements.txt
 cd ..
 ```
 
-Connect an Android device, enable USB debugging, and verify the connection:
-
-```sh
-adb devices
-```
-
-Start the backend from the repository root:
+For an Android device connected through ADB, start the backend from the
+repository root:
 
 ```sh
 ./script/run-backend.sh
 ```
 
-The script configures `adb reverse tcp:8000 tcp:8000` and runs Uvicorn at `127.0.0.1:8000` with hot reload. OpenAPI documentation is available at <http://127.0.0.1:8000/docs>.
-
-You can also run the backend without an Android device:
-
-```sh
-cd backend
-.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-### 2. Run the Flutter App
-
-In another terminal:
+Then run the reference app:
 
 ```sh
 cd mobile
-fvm flutter pub get
-fvm flutter run
+flutter pub get
+flutter run
 ```
 
-The default application URL is `http://127.0.0.1:8000`, so it works directly with `adb reverse`. For a device on the same network, point the app to a backend address reachable from that device:
+The default URL is `http://127.0.0.1:8000`. To use another reachable backend:
 
 ```sh
-fvm flutter run \
-  --dart-define=LIVENESS_API_URL=http://192.168.1.10:8000
+flutter run \
+  --dart-define=LIVENESS_API_URL=https://liveness.example.com
 ```
 
-Use HTTPS/WSS and appropriate platform security settings outside local development. Android currently permits cleartext traffic for development.
-
-## API and Frame Protocol
-
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| `GET` | `/health` | Check backend process health |
-| `POST` | `/sessions` | Create a liveness session |
-| `POST` | `/sessions/{session_id}/frames` | Send one JPEG/PNG in the multipart `image` field |
-| `WS` | `/sessions/{session_id}/stream` | Exchange binary frames and results sequentially |
-
-HTTP examples:
-
-```sh
-curl -X POST http://127.0.0.1:8000/sessions
-curl -X POST \
-  -F 'image=@frame.jpg;type=image/jpeg' \
-  http://127.0.0.1:8000/sessions/SESSION_ID/frames
-```
-
-The mobile app uses the internal `LVC1` binary format over WebSocket:
-
-```text
-4 bytes : ASCII "LVC1"
-2 bytes : width, unsigned big-endian
-2 bytes : height, unsigned big-endian
-N bytes : BGR pixels, three bytes per pixel
-```
-
-Camera frames are rotated upright and scaled so the longest side is no more than 640 pixels. The WebSocket protocol requires one frame followed by one response and limits payloads to 5 MB. The HTTP endpoint accepts JPEG/PNG only.
-
-API responses use this envelope:
-
-```json
-{
-  "success": true,
-  "message": "Frame berhasil diproses",
-  "data": {
-    "status": "blink",
-    "passed": false,
-    "instruction": "Kedipkan kedua mata sekali.",
-    "frames_processed": 4
-  },
-  "errors": null
-}
-```
-
-The Indonesian strings above are literal values produced by the API. Challenge states are `align`, `open`, `blink`, `reopen`, `move`, `passed`, and `failed`.
+See [backend/README.md](backend/README.md) for the API contract, Docker setup,
+models, thresholds, and deployment details.
 
 ## Testing
 
-Every pull request must pass checks for the liveness package, mobile application, and backend before it can be merged into the main branch.
+Run checks for the on-device package:
 
-Backend tests use `unittest`:
+```sh
+cd packages/liveness_edge_flutter
+flutter analyze
+flutter test
+```
+
+Run checks for the server-assisted package:
+
+```sh
+cd packages/liveness_verify_flutter
+flutter analyze
+flutter test
+```
+
+After changing JSON-annotated models in `liveness_verify_flutter`, regenerate
+the serializers:
+
+```sh
+cd packages/liveness_verify_flutter
+dart run build_runner build --delete-conflicting-outputs
+```
+
+Run backend tests:
 
 ```sh
 cd backend
 .venv/bin/python -m unittest discover -p 'test_*.py'
 ```
 
-Mobile tests use Flutter Test:
+## Security and Limitations
 
-```sh
-cd mobile
-fvm flutter test
-```
-
-Run static analysis with:
-
-```sh
-cd mobile
-fvm flutter analyze
-```
-
-After changing annotated models under `packages/liveness_flutter/lib/src/liveness/models/`, regenerate serializers:
-
-```sh
-cd packages/liveness_flutter
-fvm flutter pub run build_runner build --delete-conflicting-outputs
-```
-
-## Docker and Deployment
-
-### Use Your Own Backend Server
-
-You can customize the deployment by hosting the code under `backend/` on your own server. The server may run the Python application directly or use the included Dockerfile. A basic Docker deployment is:
-
-```sh
-docker build -t liveness-backend backend
-docker run -d --name liveness-backend --restart unless-stopped \
-  -p 18080:8000 liveness-backend
-curl http://127.0.0.1:18080/health
-```
-
-Expose the backend through an HTTPS/WSS endpoint, then configure that base URL as `LIVENESS_API_URL` when building the mobile application. The URL must be reachable from the tester's device. See [backend/README.md](backend/README.md) for Docker, reverse-proxy, health-check, and GitHub Actions deployment details.
-
-A push to `main` that changes `backend/**` starts deployment on the self-hosted Linux X64 runner labeled `liveness`. The workflow builds a container, publishes the backend on host port `18080`, performs a health check, and restores the previous container if the new deployment fails.
-
-See [mobile/README.md](mobile/README.md) for runner and Firebase setup, and [backend/README.md](backend/README.md) for model, threshold, API, and backend deployment details.
-
-## Limitations and Security
-
-- MiniFASNetV2 is used as a single-image model; there is no dedicated temporal anti-replay model.
-- Lighting, pose, alignment, and anti-spoofing thresholds are heuristic and require calibration with real data.
-- Current evaluation targets primarily printed photos and screen displays; masks and 3D attacks have not been validated.
-- Sessions live in one process's memory and are lost when the backend restarts or is deployed.
-- The backend does not yet provide authentication, rate limiting, shared session storage, or TLS.
-- The backend does not save frames, but biometric data is still transmitted over the network during a session. Use encrypted connections and an appropriate privacy policy in real environments.
+- Neither package should be the sole authorization signal for banking, e-KYC,
+  account recovery, or another high-risk operation.
+- The bundled passive model primarily targets printed-photo and screen-replay
+  attacks. Masks, 3D attacks, camera injection, rooted devices, and modified
+  applications have not been fully validated.
+- Thresholds require calibration using representative users, devices, lighting,
+  and attacks.
+- For high-risk flows, combine liveness with server-issued nonces, replay
+  protection, platform attestation, and a trusted server-side decision.
+- The server-assisted package transmits biometric frames. Use encrypted
+  transport and publish an appropriate consent, privacy, and retention policy.
+- Client-side on-device results are private and offline, but a compromised host
+  application can still tamper with callbacks or result handling.
 
 ## License and Third-Party Models
 
 Project code is licensed under the [MIT License](LICENSE).
 
-The repository also bundles third-party models:
-
-- `face_detection_yunet_2023mar.onnx` from [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet).
-- `minifasnet_v2.onnx`, an ONNX conversion of MiniFASNetV2 from [Silent Face Anti-Spoofing](https://github.com/minivision-ai/Silent-Face-Anti-Spoofing); its conversion source is documented in [backend/README.md](backend/README.md).
-
-Review each model's license and terms before distribution or commercial use.
+The repository bundles third-party MediaPipe, YuNet, ONNX Runtime, and
+MiniFASNetV2 components or model files. Review their provenance, licenses, and
+suitability before redistribution or commercial use. Additional model details
+are documented in the package and [backend documentation](backend/README.md).
