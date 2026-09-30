@@ -1,6 +1,6 @@
 name: liveness_edge_flutter
 description: Private, offline face-liveness verification for Flutter using MediaPipe and ONNX Runtime.
-version: 0.2.0
+version: 0.2.1
 homepage: https://github.com/nicolafeby/liveness/tree/main/packages/liveness_edge_flutter
 repository: https://github.com/nicolafeby/liveness/tree/main/packages/liveness_edge_flutter
 issue_tracker: https://github.com/nicolafeby/liveness/issues

@@ -1,5 +1,7 @@
-## Unreleased
+## 0.2.1
 
+- Require three stable, frontal frames with both eyes fully open before saving
+  the final verification image.
 - Prevent fast iOS devices from exhausting the analyzed-frame safety cap well
   before the configured session timeout.
 - Tolerate brief face-landmarker dropouts during active challenges while still
@@ -8,7 +10,6 @@
   changing the Android YUV/NV21 conversion path.
 - Normalize front-camera yaw on iOS so left and right head-turn instructions
   match the user's physical direction.
-- Clear the failure snackbar when retrying in the example application.
 
 ## 0.2.0
 

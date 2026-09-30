@@ -382,6 +382,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
       LivenessStatus.align ||
       LivenessStatus.open => messages.positionFaceInFrame,
       LivenessStatus.blink || LivenessStatus.reopen => messages.holdStill,
+      LivenessStatus.finalCapture => messages.holdStill,
       LivenessStatus.move ||
       LivenessStatus.smile ||
       LivenessStatus.openMouth ||

@@ -256,7 +256,7 @@ class LivenessChallenge {
   int actionIndex = 0;
   int actionFrames = 0;
   LivenessStatus status = LivenessStatus.align;
-  int frames = 0, aligned = 0, turned = 0, returned = 0;
+  int frames = 0, aligned = 0, turned = 0, returned = 0, finalCaptureFrames = 0;
   double? baseX, baseY, baseW, baseH, baseYaw;
   double baseSmile = 0, baseMouthOpen = 0;
   DateTime? blinkStartedAt,
@@ -281,6 +281,8 @@ class LivenessChallenge {
         return .08;
       case LivenessStatus.open:
         return .16;
+      case LivenessStatus.finalCapture:
+        return .96;
       case LivenessStatus.passed:
         return 1;
       case LivenessStatus.failed:
@@ -392,8 +394,29 @@ class LivenessChallenge {
           scores.length < 5) {
         return result(configuration.messages.keepFacingCamera);
       } else {
-        return _finish();
+        return _beginFinalCapture();
       }
+    } else if (status == LivenessStatus.finalCapture) {
+      final isFrontal = o.yaw != null && o.yaw!.abs() <= 8;
+      final eyesFullyOpen =
+          o.eyesOpen && (o.eyeBlinkScore == null || o.eyeBlinkScore! <= .25);
+      if (guidance != null) {
+        finalCaptureFrames = 0;
+        return result(guidance);
+      }
+      if (!isFrontal) {
+        finalCaptureFrames = 0;
+        return result(configuration.messages.keepFacingCamera);
+      }
+      if (!eyesFullyOpen) {
+        finalCaptureFrames = 0;
+        return result(configuration.messages.openEyes);
+      }
+      if (!_stable(o)) {
+        finalCaptureFrames = 0;
+        return result(configuration.messages.keepFaceStable);
+      }
+      if (++finalCaptureFrames >= 3) return _finish();
     } else if ((status == LivenessStatus.blink ||
             status == LivenessStatus.reopen) &&
         !_stable(o)) {
@@ -517,7 +540,8 @@ class LivenessChallenge {
       status == LivenessStatus.move ||
       status == LivenessStatus.smile ||
       status == LivenessStatus.openMouth ||
-      status == LivenessStatus.returnNeutral;
+      status == LivenessStatus.returnNeutral ||
+      status == LivenessStatus.finalCapture;
 
   LivenessResult _handleInputIssue(DateTime now, String message) {
     if (!_isActiveChallenge) return _reset(message);
@@ -556,7 +580,13 @@ class LivenessChallenge {
       _beginAction(now);
       return result();
     }
-    return _finish();
+    return _beginFinalCapture();
+  }
+
+  LivenessResult _beginFinalCapture() {
+    status = LivenessStatus.finalCapture;
+    finalCaptureFrames = 0;
+    return result();
   }
 
   void _adaptBaseline(LivenessObservation o) {
@@ -589,7 +619,7 @@ class LivenessChallenge {
 
   LivenessResult _reset(String message) {
     status = LivenessStatus.align;
-    aligned = turned = returned = 0;
+    aligned = turned = returned = finalCaptureFrames = 0;
     actionIndex = actionFrames = 0;
     baseX = baseY = baseW = baseH = baseYaw = null;
     blinkStartedAt = closedAt = unstableSince = eyesMissingSince =
@@ -653,6 +683,7 @@ class LivenessChallenge {
           LivenessStatus.openMouth => configuration.messages.openMouth,
           LivenessStatus.returnNeutral =>
             configuration.messages.returnToNeutral,
+          LivenessStatus.finalCapture => configuration.messages.openEyes,
           LivenessStatus.passed => configuration.messages.verificationComplete,
           LivenessStatus.failed => configuration.messages.verificationFailed,
         },

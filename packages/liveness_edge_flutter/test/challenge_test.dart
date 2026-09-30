@@ -20,6 +20,14 @@ void main() {
     liveScore: .9,
   );
 
+  LivenessResult completeFinalCapture(LivenessChallenge challenge) {
+    var result = challenge.result();
+    for (var i = 0; i < 3; i++) {
+      result = challenge.advance(front);
+    }
+    return result;
+  }
+
   test('selects three or four unique active challenges by default', () {
     for (var seed = 0; seed < 30; seed++) {
       final challenge = LivenessChallenge(
@@ -93,7 +101,8 @@ void main() {
       }
       expect(challenge.turned, 2);
       challenge.advance(front);
-      expect(challenge.advance(front).status, LivenessStatus.passed);
+      expect(challenge.advance(front).status, LivenessStatus.finalCapture);
+      expect(completeFinalCapture(challenge).status, LivenessStatus.passed);
     }
   });
 
@@ -175,7 +184,8 @@ void main() {
     challenge.advance(smiling);
     expect(challenge.status, LivenessStatus.returnNeutral);
     challenge.advance(neutral);
-    expect(challenge.advance(neutral).status, LivenessStatus.passed);
+    expect(challenge.advance(neutral).status, LivenessStatus.finalCapture);
+    expect(completeFinalCapture(challenge).status, LivenessStatus.passed);
   });
 
   test('completes open-mouth after activation and return to neutral', () {
@@ -211,7 +221,8 @@ void main() {
     challenge.advance(open);
     expect(challenge.status, LivenessStatus.returnNeutral);
     challenge.advance(neutral);
-    expect(challenge.advance(neutral).status, LivenessStatus.passed);
+    expect(challenge.advance(neutral).status, LivenessStatus.finalCapture);
+    expect(completeFinalCapture(challenge).status, LivenessStatus.passed);
   });
 
   test('skips blink when it is disabled', () {
@@ -248,7 +259,7 @@ void main() {
       ),
     );
     challenge.advance(front);
-    final result = challenge.advance(front);
+    final result = completeFinalCapture(challenge);
 
     expect(result.status, LivenessStatus.passed);
     expect(result.passiveScore, isNull);
@@ -424,7 +435,91 @@ void main() {
       expect(result.instruction, isNot(contains('Blink')));
     }
 
-    expect(result!.status, LivenessStatus.passed);
+    expect(result!.status, LivenessStatus.finalCapture);
+    expect(completeFinalCapture(challenge).status, LivenessStatus.passed);
+  });
+
+  test('waits for fully open eyes before final capture', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.blink}),
+    );
+    const halfOpen = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      eyeBlinkScore: .4,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+    );
+    const fullyOpen = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      eyeBlinkScore: .1,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+    );
+
+    challenge.advance(front);
+    challenge.advance(front);
+    challenge.advance(front);
+    challenge.advance(
+      const LivenessObservation(
+        faceCount: 1,
+        faceCenterX: .5,
+        faceCenterY: .5,
+        faceWidth: .4,
+        faceHeight: .5,
+        yaw: 0,
+      ),
+    );
+    challenge.advance(front);
+    expect(challenge.status, LivenessStatus.finalCapture);
+
+    expect(challenge.advance(halfOpen).status, LivenessStatus.finalCapture);
+    expect(challenge.finalCaptureFrames, 0);
+    expect(challenge.advance(fullyOpen).status, LivenessStatus.finalCapture);
+    expect(challenge.advance(fullyOpen).status, LivenessStatus.finalCapture);
+    expect(challenge.advance(fullyOpen).status, LivenessStatus.passed);
+  });
+
+  test('waits for a frontal face before final capture', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.blink}),
+    );
+    const turned = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      eyeBlinkScore: .1,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 12,
+    );
+
+    challenge.advance(front);
+    challenge.advance(front);
+    challenge.advance(front);
+    challenge.advance(
+      const LivenessObservation(
+        faceCount: 1,
+        faceCenterX: .5,
+        faceCenterY: .5,
+        faceWidth: .4,
+        faceHeight: .5,
+        yaw: 0,
+      ),
+    );
+    challenge.advance(front);
+
+    expect(challenge.advance(turned).status, LivenessStatus.finalCapture);
+    expect(challenge.finalCaptureFrames, 0);
+    expect(completeFinalCapture(challenge).status, LivenessStatus.passed);
   });
 
   test('rejects an empty validation set', () {
