@@ -45,7 +45,7 @@ Alternatively, add it directly to `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  liveness_edge_flutter: ^0.2.0
+  liveness_edge_flutter: ^0.2.1
 ```
 
 ### Android setup
@@ -181,6 +181,9 @@ multiple frames and return to its neutral pose before the next action starts.
 Disabled active challenges are skipped, so their instructions are not shown.
 Passive sensitivity is ignored when `passiveAntiSpoof` is disabled.
 
+After the configured checks pass, the package waits for three stable, frontal
+frames with both eyes fully open before producing the verified JPEG.
+
 The package keeps a frozen, normalized, on-device landmark descriptor for the
 first aligned face. If a different frontal face is detected in two consecutive
 frames, the active challenge returns to alignment. A session cannot pass while
@@ -252,7 +255,7 @@ Flutter camera frame
   -> MediaPipe Face Landmarker (bounds, blink, expression, and head yaw)
   -> MiniFASNetV2 through ONNX Runtime (passive live score)
   -> challenge state machine (align, 3-4 randomized actions, neutral return,
-     same-face continuity)
+     same-face continuity, stable final capture)
   -> LivenessResult
 ```
 

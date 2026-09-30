@@ -24,6 +24,9 @@ enum LivenessStatus {
   /// The user must return to the neutral pose after an active gesture.
   returnNeutral,
 
+  /// The user must hold a frontal pose with both eyes fully open for capture.
+  finalCapture,
+
   /// Active and passive liveness checks succeeded.
   passed,
 

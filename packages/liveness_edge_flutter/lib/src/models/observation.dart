@@ -3,6 +3,7 @@ class LivenessObservation {
     required this.faceCount,
     this.eyesDetected = true,
     this.eyesOpen = false,
+    this.eyeBlinkScore,
     this.faceCenterX = 0,
     this.faceCenterY = 0,
     this.faceWidth = 0,
@@ -18,6 +19,9 @@ class LivenessObservation {
   final int faceCount;
   final bool eyesDetected;
   final bool eyesOpen;
+
+  /// Highest MediaPipe blink score for either eye; lower means more open.
+  final double? eyeBlinkScore;
   final double faceCenterX;
   final double faceCenterY;
   final double faceWidth;
@@ -35,6 +39,7 @@ class LivenessObservation {
         eyesDetected:
             map['eyesDetected'] as bool? ?? map.containsKey('eyesOpen'),
         eyesOpen: map['eyesOpen'] as bool? ?? false,
+        eyeBlinkScore: (map['eyeBlinkScore'] as num?)?.toDouble(),
         faceCenterX: (map['faceCenterX'] as num?)?.toDouble() ?? 0,
         faceCenterY: (map['faceCenterY'] as num?)?.toDouble() ?? 0,
         faceWidth: (map['faceWidth'] as num?)?.toDouble() ?? 0,

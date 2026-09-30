@@ -79,12 +79,13 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
     var blend:[String:Float]=[:]
     if let shapes=detected.faceBlendshapes.first?.categories { for item in shapes { blend[item.categoryName ?? ""] = item.score } }
     let eyesDetected=blend["eyeBlinkLeft"] != nil && blend["eyeBlinkRight"] != nil
-    let eyesOpen=max(blend["eyeBlinkLeft"] ?? 1, blend["eyeBlinkRight"] ?? 1) < 0.55
+    let eyeBlinkScore=max(blend["eyeBlinkLeft"] ?? 1, blend["eyeBlinkRight"] ?? 1)
+    let eyesOpen=eyeBlinkScore < 0.55
     let smileScore=min(blend["mouthSmileLeft"] ?? 0, blend["mouthSmileRight"] ?? 0)
     let mouthOpenScore=blend["jawOpen"] ?? 0
     let left=points[33], right=points[263], nose=points[1]; let dx=right.x-left.x, dy=right.y-left.y
     let offset=((nose.x-(left.x+right.x)/2)*dx+(nose.y-(left.y+right.y)/2)*dy)/(dx*dx+dy*dy)
-    var output:[String:Any] = ["faceCount":1,"eyesDetected":eyesDetected,"eyesOpen":eyesOpen,"faceCenterX":Double((minX+maxX)/2),
+    var output:[String:Any] = ["faceCount":1,"eyesDetected":eyesDetected,"eyesOpen":eyesOpen,"eyeBlinkScore":Double(eyeBlinkScore),"faceCenterX":Double((minX+maxX)/2),
       "faceCenterY":Double((minY+maxY)/2),"faceWidth":Double(maxX-minX),"faceHeight":Double(maxY-minY),
       // camera_avfoundation's front-camera BGRA coordinates produce the
       // opposite yaw sign from the user-facing left/right convention used by
