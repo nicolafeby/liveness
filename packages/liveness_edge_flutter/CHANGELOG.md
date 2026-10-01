@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.0
 
 - Add `LivenessEdgeTheme` for screen colors and camera-guide appearance.
 - Move guideline and supporting text styles into `LivenessEdgeTheme`; retain
@@ -7,6 +7,8 @@
 - Add `headerBuilder` with read-only `LivenessEdgeViewState` presentation data.
 - Improve open-mouth recognition on iOS with a normalized lip-gap fallback
   when the MediaPipe `jawOpen` blendshape is too conservative.
+- Show move-farther guidance before the face reaches the frame boundary,
+  improving alignment feedback on iOS front-camera frames.
 
 ## 0.2.1
 
