@@ -694,4 +694,27 @@ void main() {
 
     expect(result.instruction, 'Geser wajah ke kanan');
   });
+
+  test(
+    'asks the user to move farther before the face reaches the frame edge',
+    () {
+      final challenge = LivenessChallenge(
+        const LivenessConfiguration(validations: {LivenessValidation.blink}),
+      );
+
+      final result = challenge.advance(
+        const LivenessObservation(
+          faceCount: 1,
+          eyesOpen: true,
+          faceCenterX: .5,
+          faceCenterY: .5,
+          faceWidth: .61,
+          faceHeight: .68,
+        ),
+      );
+
+      expect(result.instruction, 'Move farther from the camera.');
+      expect(result.status, LivenessStatus.align);
+    },
+  );
 }
