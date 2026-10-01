@@ -247,8 +247,13 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
     final previousStatus = _result?.status;
     final instructionChanged = next.instruction != _displayedInstruction;
     final statusChanged = next.status != previousStatus;
+    final distanceWarning =
+        next.instruction == widget.configuration.messages.moveFarther;
 
-    if (forceInstruction || statusChanged || _displayedInstruction == null) {
+    if (forceInstruction ||
+        statusChanged ||
+        distanceWarning ||
+        _displayedInstruction == null) {
       _displayedInstruction = next.instruction;
       _pendingInstruction = null;
       _pendingInstructionSince = null;

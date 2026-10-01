@@ -607,7 +607,11 @@ class LivenessChallenge {
     if (o.faceWidth < .20 || o.faceHeight < .25) {
       return configuration.messages.moveCloser;
     }
-    if (o.faceWidth > .70 || o.faceHeight > .75) {
+    // Warn before the face reaches the image boundary. In particular, iOS
+    // front-camera frames can stop yielding a complete landmark contour once
+    // the face is close enough to fill most of the frame, so waiting for a
+    // 70%-wide face made the guidance arrive too late (or not at all).
+    if (o.faceWidth > .60 || o.faceHeight > .70) {
       return configuration.messages.moveFarther;
     }
     if (o.faceCenterX < .40) return configuration.messages.moveRight;
