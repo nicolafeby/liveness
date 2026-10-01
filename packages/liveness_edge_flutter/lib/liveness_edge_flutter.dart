@@ -17,3 +17,4 @@ export 'src/models/liveness_action.dart';
 export 'src/models/liveness_status.dart';
 export 'src/models/liveness_validation.dart';
 export 'src/screen/liveness_edge_screen.dart';
+export 'src/screen/liveness_edge_theme.dart';
