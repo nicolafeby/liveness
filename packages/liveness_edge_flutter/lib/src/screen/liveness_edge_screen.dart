@@ -9,12 +9,37 @@ import '../core/color_frame.dart';
 import '../core/detector.dart';
 import '../models/liveness_result.dart';
 import '../models/liveness_status.dart';
+import 'liveness_edge_theme.dart';
 
 /// Builds the retry action shown after a failed attempt or screen error.
 ///
 /// Use [onPressed] as the button's action so the liveness session can restart.
 typedef LivenessRetryButtonBuilder =
     Widget Function(BuildContext context, String label, VoidCallback onPressed);
+
+/// Builds optional content above the camera guide.
+typedef LivenessHeaderBuilder =
+    Widget Function(BuildContext context, LivenessEdgeViewState state);
+
+/// Read-only presentation state exposed to custom liveness widgets.
+@immutable
+class LivenessEdgeViewState {
+  const LivenessEdgeViewState({
+    required this.status,
+    required this.instruction,
+    required this.supportingText,
+    required this.progress,
+    required this.isCameraReady,
+    required this.hasError,
+  });
+
+  final LivenessStatus? status;
+  final String instruction;
+  final String supportingText;
+  final double progress;
+  final bool isCameraReady;
+  final bool hasError;
+}
 
 /// A full-screen, ready-to-use on-device liveness capture flow.
 ///
@@ -29,7 +54,11 @@ class LivenessEdgeScreen extends StatefulWidget {
     this.onSuccess,
     this.onFailed,
     this.onCancel,
+    this.theme = const LivenessEdgeTheme(),
+    this.headerBuilder,
+    @Deprecated('Use LivenessEdgeTheme.guidelineTextStyle instead.')
     this.guidelineTextStyle,
+    @Deprecated('Use LivenessEdgeTheme.supportingTextStyle instead.')
     this.supportingTextStyle,
     this.retryButtonBuilder,
   });
@@ -53,14 +82,22 @@ class LivenessEdgeScreen extends StatefulWidget {
   /// When omitted, the screen attempts to pop the current route.
   final VoidCallback? onCancel;
 
+  /// Colors and camera-guide shape used by the built-in interface.
+  final LivenessEdgeTheme theme;
+
+  /// Builds optional branded content above the camera guide.
+  final LivenessHeaderBuilder? headerBuilder;
+
   /// Overrides the style of the primary challenge instruction.
   ///
   /// Unspecified properties retain the screen's default values.
+  @Deprecated('Use LivenessEdgeTheme.guidelineTextStyle instead.')
   final TextStyle? guidelineTextStyle;
 
   /// Overrides the style of the supporting text below the instruction.
   ///
   /// Unspecified properties retain the screen's default values.
+  @Deprecated('Use LivenessEdgeTheme.supportingTextStyle instead.')
   final TextStyle? supportingTextStyle;
 
   /// Builds the retry button shown after a failed attempt or screen error.
@@ -264,8 +301,9 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
   @override
   Widget build(BuildContext context) {
     final camera = _camera;
+    final theme = widget.theme;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: theme.backgroundColor,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -273,8 +311,23 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
               constraints.maxWidth * .76,
               constraints.maxHeight * .52 / 1.28,
             );
-            final guideSize = Size(guideWidth, guideWidth * 1.28);
+            final guideSize = theme.cameraShape == LivenessCameraShape.circle
+                ? Size.square(guideWidth)
+                : Size(guideWidth, guideWidth * 1.28);
             final status = _result?.status;
+            final instruction =
+                _error ??
+                _displayedInstruction ??
+                widget.configuration.messages.preparingCamera;
+            final supportingText = _supportingText(status);
+            final viewState = LivenessEdgeViewState(
+              status: status,
+              instruction: instruction,
+              supportingText: supportingText,
+              progress: status == null ? 0 : _challenge.progress,
+              isCameraReady: camera?.value.isInitialized ?? false,
+              hasError: _error != null,
+            );
 
             return Stack(
               children: [
@@ -286,18 +339,23 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
                     onPressed:
                         widget.onCancel ?? () => Navigator.maybePop(context),
                     icon: const Icon(Icons.close_rounded),
-                    color: const Color(0xFF202727),
+                    color: theme.foregroundColor,
                   ),
                 ),
                 Positioned.fill(
                   child: Column(
                     children: [
                       const Spacer(flex: 2),
+                      if (widget.headerBuilder case final builder?) ...[
+                        builder(context, viewState),
+                        const SizedBox(height: 16),
+                      ],
                       _FaceCaptureGuide(
                         size: guideSize,
                         camera: camera,
-                        progress: status == null ? 0 : _challenge.progress,
+                        progress: viewState.progress,
                         completed: status == LivenessStatus.passed,
+                        theme: theme,
                       ),
                       const Spacer(flex: 1),
                       SizedBox(
@@ -312,34 +370,38 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
                                 ),
                                 child: Center(
                                   child: Text(
-                                    _error ??
-                                        _displayedInstruction ??
-                                        widget
-                                            .configuration
-                                            .messages
-                                            .preparingCamera,
+                                    instruction,
                                     textAlign: TextAlign.center,
                                     maxLines: 3,
-                                    style: TextStyle(
-                                      color: status == LivenessStatus.passed
-                                          ? const Color(0xFF14B887)
-                                          : const Color(0xFF202727),
-                                      fontSize: 21,
-                                      height: 1.25,
-                                      fontWeight: FontWeight.w600,
-                                    ).merge(widget.guidelineTextStyle),
+                                    style:
+                                        TextStyle(
+                                              color:
+                                                  status ==
+                                                      LivenessStatus.passed
+                                                  ? theme.successColor
+                                                  : theme.foregroundColor,
+                                              fontSize: 21,
+                                              height: 1.25,
+                                              fontWeight: FontWeight.w600,
+                                            )
+                                            .merge(theme.guidelineTextStyle)
+                                            .merge(widget.guidelineTextStyle),
                                   ),
                                 ),
                               ),
                               const SizedBox(height: 10),
                               Text(
-                                _supportingText(status),
+                                supportingText,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Color(0xFF77807E),
-                                  fontSize: 14,
-                                  height: 1.4,
-                                ).merge(widget.supportingTextStyle),
+                                style:
+                                    TextStyle(
+                                          color: theme.foregroundColor
+                                              .withValues(alpha: .65),
+                                          fontSize: 14,
+                                          height: 1.4,
+                                        )
+                                        .merge(theme.supportingTextStyle)
+                                        .merge(widget.supportingTextStyle),
                               ),
                               if (_error != null ||
                                   status == LivenessStatus.failed) ...[
@@ -356,6 +418,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
                                     label:
                                         widget.configuration.messages.tryAgain,
                                     onPressed: _start,
+                                    theme: theme,
                                   ),
                               ],
                             ],
@@ -394,26 +457,34 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
 }
 
 class _RetryButton extends StatelessWidget {
-  const _RetryButton({required this.label, required this.onPressed});
+  const _RetryButton({
+    required this.label,
+    required this.onPressed,
+    required this.theme,
+  });
 
   final String label;
   final VoidCallback onPressed;
+  final LivenessEdgeTheme theme;
 
   @override
   Widget build(BuildContext context) {
     const borderRadius = BorderRadius.all(Radius.circular(24));
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         borderRadius: borderRadius,
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF7548EE), Color(0xFF5D31E8)],
+          colors: [
+            Color.lerp(theme.primaryColor, Colors.white, .12)!,
+            theme.primaryColor,
+          ],
         ),
         boxShadow: [
           BoxShadow(
-            color: Color(0x385D31E8),
+            color: theme.primaryColor.withValues(alpha: .22),
             blurRadius: 18,
             offset: Offset(0, 7),
           ),
@@ -460,12 +531,14 @@ class _FaceCaptureGuide extends StatelessWidget {
     required this.camera,
     required this.progress,
     required this.completed,
+    required this.theme,
   });
 
   final Size size;
   final CameraController? camera;
   final double progress;
   final bool completed;
+  final LivenessEdgeTheme theme;
 
   @override
   Widget build(BuildContext context) {
@@ -477,8 +550,8 @@ class _FaceCaptureGuide extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           Center(
-            child: ClipOval(
-              child: SizedBox.fromSize(size: size, child: _cameraPreview()),
+            child: _clipCamera(
+              SizedBox.fromSize(size: size, child: _cameraPreview()),
             ),
           ),
           IgnorePointer(
@@ -491,6 +564,11 @@ class _FaceCaptureGuide extends StatelessWidget {
                   progress: value,
                   completed: completed,
                   padding: ringPadding,
+                  shape: theme.cameraShape,
+                  borderRadius: theme.cameraBorderRadius,
+                  primaryColor: theme.primaryColor,
+                  successColor: theme.successColor,
+                  inactiveColor: theme.inactiveRingColor,
                 ),
               ),
             ),
@@ -500,11 +578,20 @@ class _FaceCaptureGuide extends StatelessWidget {
     );
   }
 
+  Widget _clipCamera(Widget child) => switch (theme.cameraShape) {
+    LivenessCameraShape.oval ||
+    LivenessCameraShape.circle => ClipOval(child: child),
+    LivenessCameraShape.roundedRectangle => ClipRRect(
+      borderRadius: BorderRadius.circular(theme.cameraBorderRadius),
+      child: child,
+    ),
+  };
+
   Widget _cameraPreview() {
     final controller = camera;
     if (controller == null || !controller.value.isInitialized) {
-      return const DecoratedBox(
-        decoration: BoxDecoration(
+      return DecoratedBox(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -514,7 +601,7 @@ class _FaceCaptureGuide extends StatelessWidget {
         child: Center(
           child: CircularProgressIndicator(
             strokeWidth: 2.5,
-            color: Color(0xFF6635E8),
+            color: theme.primaryColor,
           ),
         ),
       );
@@ -539,16 +626,30 @@ class _SegmentedRingPainter extends CustomPainter {
     required this.progress,
     required this.completed,
     required this.padding,
+    required this.shape,
+    required this.borderRadius,
+    required this.primaryColor,
+    required this.successColor,
+    required this.inactiveColor,
   });
 
   final double progress;
   final bool completed;
   final double padding;
+  final LivenessCameraShape shape;
+  final double borderRadius;
+  final Color primaryColor;
+  final Color successColor;
+  final Color inactiveColor;
 
   static const _segments = 64;
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (shape == LivenessCameraShape.roundedRectangle) {
+      _paintRoundedRectangle(canvas, size);
+      return;
+    }
     final center = size.center(Offset.zero);
     final innerRx = (size.width - padding * 2) / 2 + 7;
     final innerRy = (size.height - padding * 2) / 2 + 7;
@@ -569,10 +670,10 @@ class _SegmentedRingPainter extends CustomPainter {
       );
       final isActive = index < activeSegments;
       final color = completed
-          ? const Color(0xFF25C995)
+          ? successColor
           : isActive
-          ? const Color(0xFF6635E8)
-          : const Color(0xFFD1D6D5);
+          ? primaryColor
+          : inactiveColor;
 
       canvas.drawLine(
         start,
@@ -585,9 +686,51 @@ class _SegmentedRingPainter extends CustomPainter {
     }
   }
 
+  void _paintRoundedRectangle(Canvas canvas, Size size) {
+    final ringOffset = padding - 7;
+    final rect = Rect.fromLTWH(
+      ringOffset,
+      ringOffset,
+      size.width - ringOffset * 2,
+      size.height - ringOffset * 2,
+    );
+    final radius = math.min(
+      borderRadius + 7,
+      math.min(rect.width, rect.height) / 2,
+    );
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(rect, Radius.circular(radius)));
+    final metric = path.computeMetrics().first;
+    final activeSegments = (progress.clamp(0.0, 1.0) * _segments).round();
+    final segmentLength = metric.length / _segments;
+
+    for (var index = 0; index < _segments; index++) {
+      final start = index * segmentLength + segmentLength * .18;
+      final end = (index + 1) * segmentLength - segmentLength * .18;
+      final isActive = index < activeSegments;
+      canvas.drawPath(
+        metric.extractPath(start, end),
+        Paint()
+          ..color = completed
+              ? successColor
+              : isActive
+              ? primaryColor
+              : inactiveColor
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.5
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+  }
+
   @override
   bool shouldRepaint(_SegmentedRingPainter oldDelegate) =>
       oldDelegate.progress != progress ||
       oldDelegate.completed != completed ||
-      oldDelegate.padding != padding;
+      oldDelegate.padding != padding ||
+      oldDelegate.shape != shape ||
+      oldDelegate.borderRadius != borderRadius ||
+      oldDelegate.primaryColor != primaryColor ||
+      oldDelegate.successColor != successColor ||
+      oldDelegate.inactiveColor != inactiveColor;
 }

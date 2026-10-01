@@ -82,7 +82,12 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
     let eyeBlinkScore=max(blend["eyeBlinkLeft"] ?? 1, blend["eyeBlinkRight"] ?? 1)
     let eyesOpen=eyeBlinkScore < 0.55
     let smileScore=min(blend["mouthSmileLeft"] ?? 0, blend["mouthSmileRight"] ?? 0)
-    let mouthOpenScore=blend["jawOpen"] ?? 0
+    // jawOpen can be noticeably conservative on some iOS camera/model
+    // combinations. Supplement it with a scale-independent inner-lip gap so
+    // a clearly open mouth is still recognized. Taking the maximum preserves
+    // the blendshape signal while the Dart state machine still requires the
+    // gesture across multiple frames and a return to neutral.
+    let mouthOpenScore=calculateMouthOpenScore(points, blend["jawOpen"] ?? 0)
     let left=points[33], right=points[263], nose=points[1]; let dx=right.x-left.x, dy=right.y-left.y
     let offset=((nose.x-(left.x+right.x)/2)*dx+(nose.y-(left.y+right.y)/2)*dy)/(dx*dx+dy*dy)
     var output:[String:Any] = ["faceCount":1,"eyesDetected":eyesDetected,"eyesOpen":eyesOpen,"eyeBlinkScore":Double(eyeBlinkScore),"faceCenterX":Double((minX+maxX)/2),
@@ -97,6 +102,22 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
     let mean = luminance(data,width,height,minX,minY,maxX,maxY)
     if mean < 55 { output["lighting"]="dark" } else if mean > 205 { output["lighting"]="bright" }
     return output
+  }
+
+  private func calculateMouthOpenScore(_ points: [NormalizedLandmark], _ blendScore: Float) -> Float {
+    // 13 and 14 are the upper/lower inner lip; 33 and 263 are the outer eye
+    // corners. Normalizing by eye distance makes the measurement independent
+    // of the user's distance from the camera.
+    let upperLip=points[13],lowerLip=points[14],leftEye=points[33],rightEye=points[263]
+    let lipDx=lowerLip.x-upperLip.x,lipDy=lowerLip.y-upperLip.y
+    let eyeDx=rightEye.x-leftEye.x,eyeDy=rightEye.y-leftEye.y
+    let lipGap=sqrt(lipDx*lipDx+lipDy*lipDy)
+    let eyeDistance=max(0.0001,sqrt(eyeDx*eyeDx+eyeDy*eyeDy))
+    let normalizedGap=lipGap/eyeDistance
+    // Neutral lips are generally below 0.025; a gap around 0.225 or greater
+    // maps to a fully open score.
+    let geometricScore=min(1,max(0,(normalizedGap-0.025)/0.20))
+    return max(blendScore,geometricScore)
   }
 
   private func faceIdentity(_ points: [NormalizedLandmark]) -> [Double] {

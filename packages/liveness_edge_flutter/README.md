@@ -135,18 +135,27 @@ const LivenessConfiguration(
 );
 ```
 
-The primary guideline, supporting copy, and retry button can use the host
-application's design system. Text styles are merged with the defaults, while
-the button builder replaces the built-in retry button completely:
+Colors, the camera-guide shape, an optional header, text, and the retry button
+can use the host application's design system. Text styles are merged with the
+themed defaults, while builders replace their corresponding built-in content:
 
 ```dart
 LivenessEdgeScreen(
-  guidelineTextStyle: const TextStyle(
-    color: Color(0xFF243B53),
-    fontSize: 23,
-    fontWeight: FontWeight.w700,
+  theme: const LivenessEdgeTheme(
+    backgroundColor: Colors.black,
+    foregroundColor: Colors.white,
+    primaryColor: Colors.orange,
+    successColor: Colors.green,
+    inactiveRingColor: Colors.white24,
+    cameraShape: LivenessCameraShape.roundedRectangle,
+    cameraBorderRadius: 32,
+    guidelineTextStyle: TextStyle(
+      fontSize: 23,
+      fontWeight: FontWeight.w700,
+    ),
+    supportingTextStyle: TextStyle(fontSize: 14),
   ),
-  supportingTextStyle: const TextStyle(color: Color(0xFF627D98)),
+  headerBuilder: (context, state) => const CompanyLogo(),
   retryButtonBuilder: (context, label, onPressed) => OutlinedButton.icon(
     onPressed: onPressed,
     icon: const Icon(Icons.replay_rounded),
@@ -154,6 +163,13 @@ LivenessEdgeScreen(
   ),
 );
 ```
+
+`cameraShape` supports `oval` (the default), `circle`, and
+`roundedRectangle`. `cameraBorderRadius` applies to rounded rectangles. The
+header receives a read-only `LivenessEdgeViewState` containing the current
+status, instruction, supporting text, progress, camera readiness, and error
+state. The legacy `guidelineTextStyle` and `supportingTextStyle` screen
+properties remain available for backward compatibility but are deprecated.
 
 ### Configuration
 

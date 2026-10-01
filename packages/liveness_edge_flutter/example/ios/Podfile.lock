@@ -38,7 +38,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   camera_avfoundation: 769d252259fa21e39ada7399c9dc9c0921af8165
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  liveness_edge_flutter: 5f0bef8c35748237fcde5fde8d77d68231e84cf9
+  liveness_edge_flutter: a7dd4d4b7cb58e1990368e396ef2c8415a06a71f
   MediaPipeTasksCommon: ae27d88c4d185db114a1a768c504f8270dda79b5
   MediaPipeTasksVision: 1d6c3efa89830a131dbd0dc4fb80dea283fac521
   onnxruntime-c: 7f778680e96145956c0a31945f260321eed2611a

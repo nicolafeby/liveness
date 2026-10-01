@@ -22,12 +22,30 @@ class _ExampleHomeState extends State<ExampleHome> {
             passiveAntiSpoofSensitivity: PassiveAntiSpoofSensitivity.high,
             faceIdentitySensitivity: FaceIdentitySensitivity.strict,
           ),
-          guidelineTextStyle: const TextStyle(
-            color: Color(0xFF243B53),
-            fontSize: 23,
-            fontWeight: FontWeight.w700,
+          theme: const LivenessEdgeTheme(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            primaryColor: Colors.orange,
+            successColor: Colors.green,
+            inactiveRingColor: Colors.white24,
+            cameraShape: LivenessCameraShape.oval,
+            cameraBorderRadius: 32,
+            guidelineTextStyle: TextStyle(
+              fontSize: 23,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          supportingTextStyle: const TextStyle(color: Color(0xFF627D98)),
+          headerBuilder: (context, state) => const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.verified_user_outlined, color: Colors.white),
+              SizedBox(width: 8),
+              Text(
+                'Secure verification',
+                style: TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
           retryButtonBuilder: (context, label, onPressed) =>
               OutlinedButton.icon(
                 onPressed: () {
