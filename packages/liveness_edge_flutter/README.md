@@ -45,7 +45,7 @@ Alternatively, add it directly to `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  liveness_edge_flutter: ^0.2.1
+  liveness_edge_flutter: ^0.3.0
 ```
 
 ### Android setup
