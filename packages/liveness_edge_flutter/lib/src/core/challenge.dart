@@ -496,6 +496,12 @@ class LivenessChallenge {
     return result();
   }
 
+  /// Ends the challenge after its wall-clock deadline is reached.
+  LivenessResult expire() {
+    status = LivenessStatus.failed;
+    return result();
+  }
+
   LivenessResult? _verifyFaceIdentity(
     LivenessObservation observation,
     String? guidance,

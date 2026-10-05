@@ -18,12 +18,12 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
     case "initialize":
-      queue.async { self.respond(result) { try self.initializeModels(); return nil } }
+      queue.async { self.respond(result, code: "initialize_failed") { try self.initializeModels(); return nil } }
     case "analyze":
       guard let data = call.arguments as? FlutterStandardTypedData else {
         result(FlutterError(code: "invalid_frame", message: "The frame must be a byte array", details: nil)); return
       }
-      queue.async { self.respond(result) { try self.analyze(data.data) } }
+      queue.async { self.respond(result, code: "analysis_failed") { try self.analyze(data.data) } }
     case "close":
       queue.async { self.landmarker = nil; self.antiSpoof = nil; self.environment = nil; DispatchQueue.main.async { result(nil) } }
     default:
@@ -31,9 +31,12 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
     }
   }
 
-  private func respond(_ callback: @escaping FlutterResult, work: () throws -> Any?) {
+  private func respond(_ callback: @escaping FlutterResult, code: String, work: () throws -> Any?) {
     do { let value = try work(); DispatchQueue.main.async { callback(value) } }
-    catch { DispatchQueue.main.async { callback(FlutterError(code: "edge_error", message: error.localizedDescription, details: nil)) } }
+    catch {
+      let errorCode = (error as NSError).domain == "LivenessEdgeInvalidFrame" ? "invalid_frame" : code
+      DispatchQueue.main.async { callback(FlutterError(code: errorCode, message: error.localizedDescription, details: nil)) }
+    }
   }
 
   private func asset(_ name: String, _ ext: String) throws -> String {
@@ -59,9 +62,9 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
 
   private func analyze(_ data: Data) throws -> [String: Any] {
     try initializeModels()
-    guard data.count >= 8, String(data: data.prefix(4), encoding: .ascii) == "LVC1" else { throw edge("Invalid frame format") }
+    guard data.count >= 8, String(data: data.prefix(4), encoding: .ascii) == "LVC1" else { throw invalidFrame("Invalid frame format") }
     let width = Int(data[4]) << 8 | Int(data[5]); let height = Int(data[6]) << 8 | Int(data[7])
-    guard data.count == 8 + width * height * 3 else { throw edge("Invalid frame dimensions") }
+    guard width > 0, height > 0, data.count == 8 + width * height * 3 else { throw invalidFrame("Invalid frame dimensions") }
     var rgba = [UInt8](repeating: 255, count: width * height * 4)
     data.withUnsafeBytes { raw in
       let source = raw.bindMemory(to: UInt8.self)
@@ -71,7 +74,7 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
     guard let provider = CGDataProvider(data: Data(rgba) as CFData), let cg = CGImage(width: width, height: height,
       bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width*4, space: color,
       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue), provider: provider,
-      decode: nil, shouldInterpolate: false, intent: .defaultIntent) else { throw edge("The frame could not be read") }
+      decode: nil, shouldInterpolate: false, intent: .defaultIntent) else { throw invalidFrame("The frame could not be read") }
     let detected = try landmarker!.detect(image: MPImage(uiImage: UIImage(cgImage: cg)))
     guard detected.faceLandmarks.count == 1 else { return ["faceCount": detected.faceLandmarks.count] }
     let points = detected.faceLandmarks[0]
@@ -159,4 +162,5 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
   }
 
   private func edge(_ message:String)->NSError { NSError(domain:"LivenessEdge",code:2,userInfo:[NSLocalizedDescriptionKey:message]) }
+  private func invalidFrame(_ message:String)->NSError { NSError(domain:"LivenessEdgeInvalidFrame",code:3,userInfo:[NSLocalizedDescriptionKey:message]) }
 }

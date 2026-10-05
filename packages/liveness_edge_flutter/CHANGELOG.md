@@ -1,5 +1,7 @@
 ## 0.3.0
 
+- Add wall-clock watchdogs for sessions and native detector calls.
+- Expose typed detector error codes, operations, and native diagnostics.
 - Add `LivenessEdgeTheme` for screen colors and camera-guide appearance.
 - Move guideline and supporting text styles into `LivenessEdgeTheme`; retain
   the screen-level properties as deprecated compatibility aliases.

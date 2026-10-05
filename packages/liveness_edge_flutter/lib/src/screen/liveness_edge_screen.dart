@@ -123,6 +123,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
   String? _displayedInstruction;
   String? _pendingInstruction;
   int? _pendingInstructionSince;
+  Timer? _watchdog;
 
   static const _instructionHold = Duration(milliseconds: 600);
 
@@ -135,6 +136,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
 
   Future<void> _start() async {
     final generation = ++_generation;
+    _watchdog?.cancel();
     final previousCamera = _camera;
     _camera = null;
     _clock.stop();
@@ -176,13 +178,29 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
       _clock
         ..reset()
         ..start();
+      _watchdog = Timer(
+        widget.configuration.timeout,
+        () => _handleSessionTimeout(generation),
+      );
       _updateResult(_challenge.result(), forceInstruction: true);
       await camera.startImageStream((frame) => _process(frame, generation));
     } catch (error) {
       if (mounted && generation == _generation) {
+        _watchdog?.cancel();
         setState(() => _error = error.toString());
       }
     }
+  }
+
+  void _handleSessionTimeout(int generation) {
+    if (!mounted || generation != _generation) return;
+    _generation++;
+    _clock.stop();
+    final camera = _camera;
+    final failed = _challenge.expire();
+    _updateResult(failed, forceInstruction: true);
+    widget.onFailed?.call(failed);
+    if (camera != null) unawaited(_stopImageStream(camera));
   }
 
   void _process(CameraImage image, int generation) {
@@ -208,6 +226,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
         if (!mounted || generation != _generation) return;
         final next = _challenge.advance(observation);
         if (next.status == LivenessStatus.passed) {
+          _watchdog?.cancel();
           final completed = LivenessResult(
             status: next.status,
             instruction: next.instruction,
@@ -221,6 +240,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
             widget.onSuccess?.call(completed);
           }
         } else if (next.status.isFinished) {
+          _watchdog?.cancel();
           await _stopImageStream(camera);
           if (mounted && generation == _generation) {
             _updateResult(next, forceInstruction: true);
@@ -230,6 +250,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
           _updateResult(next);
         }
       } catch (error) {
+        _watchdog?.cancel();
         if (mounted && generation == _generation) {
           final camera = _camera;
           if (camera != null) await _stopImageStream(camera);
@@ -286,6 +307,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
+      _watchdog?.cancel();
       _generation++;
       _camera?.dispose();
       _camera = null;
@@ -298,9 +320,18 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _generation++;
+    _watchdog?.cancel();
     _camera?.dispose();
-    _detector.close();
+    unawaited(_closeDetector());
     super.dispose();
+  }
+
+  Future<void> _closeDetector() async {
+    try {
+      await _detector.close();
+    } on LivenessEdgeException {
+      // Disposal is best-effort; there is no mounted UI left to report to.
+    }
   }
 
   @override
