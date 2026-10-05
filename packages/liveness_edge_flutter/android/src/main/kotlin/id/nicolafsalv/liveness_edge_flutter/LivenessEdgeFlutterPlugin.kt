@@ -21,6 +21,8 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
+    private class InvalidFrameException(message: String) : IllegalArgumentException(message)
+
     private lateinit var channel: MethodChannel
     private lateinit var context: Context
     private val executor = Executors.newSingleThreadExecutor()
@@ -42,7 +44,7 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
             if (bytes == null) result.error("invalid_frame", "The frame must be a byte array", null)
             else executor.execute { runCatching { analyze(bytes) }.fold(
                 { value -> post { result.success(value) } },
-                { error -> post { result.error("analysis_failed", error.message, null) } }) }
+                { error -> post { result.error(if (error is InvalidFrameException) "invalid_frame" else "analysis_failed", error.message, null) } }) }
         }
         "close" -> executor.execute { closeModels(); post { result.success(null) } }
         else -> result.notImplemented()
@@ -61,10 +63,11 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
 
     private fun analyze(data: ByteArray): Map<String, Any?> {
         initialize()
-        require(data.size >= 8 && String(data, 0, 4) == "LVC1") { "Invalid frame format" }
+        if (data.size < 8 || String(data, 0, 4) != "LVC1") throw InvalidFrameException("Invalid frame format")
         val width = ((data[4].toInt() and 255) shl 8) or (data[5].toInt() and 255)
         val height = ((data[6].toInt() and 255) shl 8) or (data[7].toInt() and 255)
-        require(data.size == 8 + width * height * 3) { "Invalid frame dimensions" }
+        val expectedSize = 8L + width.toLong() * height.toLong() * 3L
+        if (width == 0 || height == 0 || data.size.toLong() != expectedSize) throw InvalidFrameException("Invalid frame dimensions")
         val pixels = IntArray(width * height); var p = 8
         for (i in pixels.indices) { val b=data[p++].toInt()and 255; val g=data[p++].toInt()and 255; val r=data[p++].toInt()and 255; pixels[i]=-0x1000000 or(r shl 16)or(g shl 8)or b }
         val bitmap = Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)

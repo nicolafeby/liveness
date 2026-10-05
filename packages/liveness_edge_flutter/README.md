@@ -317,7 +317,14 @@ flutter analyze
 flutter test
 cd example
 flutter run
+flutter test integration_test/native_detector_test.dart -d <device-id>
 ```
+
+The last command runs the real Android/iOS detector lifecycle and the bundled
+synthetic print/screen attack corpus. Run it on physical devices for release
+qualification; see
+[`example/assets/attack_corpus/README.md`](example/assets/attack_corpus/README.md)
+for the manifest format and privacy guidance.
 
 Bug reports and feature requests are welcome in the project
 [issue tracker](https://github.com/nicolafeby/liveness/issues).

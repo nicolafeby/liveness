@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "threshold": 0.7,
+  "cases": [
+    {
+      "id": "synthetic-print-attack-001",
+      "asset": "assets/attack_corpus/print_attack.png",
+      "attackType": "print",
+      "expectedFaceCount": 1,
+      "license": "AI-generated test fixture; repository license"
+    },
+    {
+      "id": "synthetic-screen-replay-001",
+      "asset": "assets/attack_corpus/screen_replay.png",
+      "attackType": "screen_replay",
+      "expectedFaceCount": 1,
+      "license": "AI-generated test fixture; repository license"
+    }
+  ]
+}
