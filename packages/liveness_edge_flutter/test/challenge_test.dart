@@ -285,8 +285,38 @@ void main() {
     );
 
     expect(result.status, LivenessStatus.blink);
-    expect(result.instruction, 'Blink both eyes once.');
+    expect(
+      result.instruction,
+      'Make sure your eyes and mouth are clearly visible and not covered.',
+    );
   });
+
+  test(
+    'asks the user to uncover the face when mouth landmarks are missing',
+    () {
+      final challenge = LivenessChallenge(
+        const LivenessConfiguration(validations: {LivenessValidation.blink}),
+      );
+
+      final result = challenge.advance(
+        const LivenessObservation(
+          faceCount: 1,
+          eyesOpen: true,
+          mouthDetected: false,
+          faceCenterX: .5,
+          faceCenterY: .5,
+          faceWidth: .4,
+          faceHeight: .5,
+        ),
+      );
+
+      expect(result.status, LivenessStatus.align);
+      expect(
+        result.instruction,
+        'Make sure your eyes and mouth are clearly visible and not covered.',
+      );
+    },
+  );
 
   test('does not reset blink after one unstable frame', () {
     final challenge = LivenessChallenge(
@@ -342,16 +372,13 @@ void main() {
     challenge.advance(front);
     challenge.advance(front);
     challenge.advance(const LivenessObservation(faceCount: 0));
-    challenge.faceMissingSince = DateTime.now().subtract(
-      const Duration(milliseconds: 800),
-    );
     final result = challenge.advance(const LivenessObservation(faceCount: 0));
 
     expect(result.status, LivenessStatus.blink);
     expect(result.instruction, contains('exactly one face'));
   });
 
-  test('restarts quickly when face is missing during an active challenge', () {
+  test('restarts from alignment when face continuity is lost', () {
     final challenge = LivenessChallenge(
       const LivenessConfiguration(validations: {LivenessValidation.blink}),
     );
@@ -363,9 +390,39 @@ void main() {
 
     challenge.advance(const LivenessObservation(faceCount: 0));
     challenge.faceMissingSince = DateTime.now().subtract(
-      const Duration(milliseconds: 1200),
+      const Duration(milliseconds: 500),
     );
     final reset = challenge.advance(const LivenessObservation(faceCount: 0));
+
+    expect(reset.status, LivenessStatus.align);
+    expect(reset.instruction, contains('continuity was lost'));
+    expect(challenge.actionIndex, 0);
+    expect(challenge.faceIdentity, isNull);
+  });
+
+  test('restarts when required landmarks stay covered', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.blink}),
+    );
+    const covered = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      eyesDetected: false,
+      mouthDetected: false,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+    );
+
+    challenge.advance(front);
+    challenge.advance(front);
+    challenge.advance(front);
+    expect(challenge.advance(covered).status, LivenessStatus.blink);
+    challenge.featuresMissingSince = DateTime.now().subtract(
+      const Duration(milliseconds: 500),
+    );
+    final reset = challenge.advance(covered);
 
     expect(reset.status, LivenessStatus.align);
     expect(reset.instruction, contains('continuity was lost'));
@@ -585,7 +642,13 @@ void main() {
     challenge.advance(firstFace);
     expect(challenge.status, LivenessStatus.blink);
 
-    expect(challenge.advance(differentFace).status, LivenessStatus.blink);
+    final pending = challenge.advance(differentFace);
+    expect(pending.status, LivenessStatus.blink);
+    expect(pending.instruction, contains('clearly visible'));
+    challenge.identityMismatchSince = DateTime.now().subtract(
+      const Duration(milliseconds: 800),
+    );
+    challenge.advance(differentFace);
     final reset = challenge.advance(differentFace);
 
     expect(reset.status, LivenessStatus.align);
@@ -631,10 +694,11 @@ void main() {
     challenge.advance(firstFace);
     challenge.advance(closedEyes);
 
-    expect(
-      challenge.advance(replacementFace).status,
-      isNot(LivenessStatus.passed),
+    expect(challenge.advance(replacementFace).status, LivenessStatus.blink);
+    challenge.identityMismatchSince = DateTime.now().subtract(
+      const Duration(milliseconds: 800),
     );
+    challenge.advance(replacementFace);
     final reset = challenge.advance(replacementFace);
     expect(reset.status, LivenessStatus.align);
     expect(reset.instruction, contains('different face'));
@@ -671,6 +735,42 @@ void main() {
     challenge.advance(noisy);
 
     expect(challenge.advance(identified).status, LivenessStatus.blink);
+  });
+
+  test('treats inconsistent identity changes as an unclear face', () {
+    const identified = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+      faceIdentity: [0, 0, 0, 0],
+    );
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.blink}),
+    );
+    challenge.advance(identified);
+    challenge.advance(identified);
+    challenge.advance(identified);
+
+    for (var value = 1.0; value <= 5; value++) {
+      final result = challenge.advance(
+        LivenessObservation(
+          faceCount: 1,
+          eyesOpen: true,
+          faceCenterX: .5,
+          faceCenterY: .5,
+          faceWidth: .4,
+          faceHeight: .5,
+          yaw: 0,
+          faceIdentity: [value, value, value, value],
+        ),
+      );
+      expect(result.status, LivenessStatus.blink);
+      expect(result.instruction, contains('clearly visible'));
+    }
   });
 
   test('uses custom messages from the configuration', () {

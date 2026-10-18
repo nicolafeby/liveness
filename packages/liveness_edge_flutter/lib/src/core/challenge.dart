@@ -66,6 +66,8 @@ class LivenessMessages {
         'Face the camera so your face direction can be detected.',
     this.eyesNotVisible =
         'Your eyes are not clearly visible. Face the camera and make sure they are not covered.',
+    this.faceCovered =
+        'Make sure your eyes and mouth are clearly visible and not covered.',
     this.openEyes = 'Open both eyes and look at the camera.',
     this.differentFace =
         'A different face was detected. Verification has been restarted.',
@@ -115,6 +117,7 @@ class LivenessMessages {
   final String blinkNotDetected;
   final String faceDirectionUnavailable;
   final String eyesNotVisible;
+  final String faceCovered;
   final String openEyes;
   final String differentFace;
   final String verifyingSameFace;
@@ -262,13 +265,16 @@ class LivenessChallenge {
   DateTime? blinkStartedAt,
       closedAt,
       unstableSince,
-      eyesMissingSince,
+      featuresMissingSince,
       faceMissingSince,
+      identityMismatchSince,
       qualityIssueSince;
   String? qualityIssue;
   final List<double> scores = [];
   List<double>? faceIdentity;
   int identityMismatches = 0;
+  List<double>? identityMismatchCandidate;
+  int identityClearFrames = 0;
 
   /// Overall session progress, including alignment and randomized actions.
   ///
@@ -310,12 +316,13 @@ class LivenessChallenge {
   }
 
   static const _inputGracePeriod = Duration(milliseconds: 750);
-  static const _eyesGracePeriod = Duration(milliseconds: 500);
+  static const _featureGracePeriod = Duration(milliseconds: 500);
+  static const _identityMismatchPeriod = Duration(milliseconds: 750);
   // Face landmarks can briefly disappear during a blink or head turn,
   // especially on front-camera frames affected by motion blur. Keep the
   // challenge active through a short detector dropout; identity matching is
   // still applied when a face returns, so this does not permit a face swap.
-  static const _activeFaceLossGracePeriod = Duration(milliseconds: 1200);
+  static const _activeFaceLossGracePeriod = Duration(milliseconds: 500);
   static const _idleFaceLossGracePeriod = Duration(seconds: 2);
 
   bool _uses(LivenessValidation validation) =>
@@ -330,7 +337,6 @@ class LivenessChallenge {
     }
     if (o.faceCount != 1) {
       faceMissingSince ??= now;
-      final message = configuration.messages.oneFaceRequired;
       final isActive = _isActiveChallenge;
       final gracePeriod = isActive
           ? _activeFaceLossGracePeriod
@@ -341,7 +347,7 @@ class LivenessChallenge {
                   ? configuration.messages.faceContinuityLost
                   : configuration.messages.faceNotDetected,
             )
-          : result(message);
+          : result(configuration.messages.oneFaceRequired);
     }
     faceMissingSince = null;
     if (o.lighting == 'dark') {
@@ -350,21 +356,21 @@ class LivenessChallenge {
     if (o.lighting == 'bright') {
       return _handleInputIssue(now, configuration.messages.faceTooBright);
     }
+    final guidance = _alignment(o);
+    if (!o.eyesDetected || !o.mouthDetected) {
+      if (!_isActiveChallenge) {
+        return result(configuration.messages.faceCovered);
+      }
+      featuresMissingSince ??= now;
+      return now.difference(featuresMissingSince!) >= _featureGracePeriod
+          ? _reset(configuration.messages.faceContinuityLost)
+          : result(configuration.messages.faceCovered);
+    }
+    featuresMissingSince = null;
+    final identityReset = _verifyFaceIdentity(o, guidance, now);
+    if (identityReset != null) return identityReset;
     qualityIssueSince = null;
     qualityIssue = null;
-    final guidance = _alignment(o);
-    final identityReset = _verifyFaceIdentity(o, guidance);
-    if (identityReset != null) return identityReset;
-    if (!o.eyesDetected) {
-      if (!_isActiveChallenge) {
-        return result(configuration.messages.eyesNotVisible);
-      }
-      eyesMissingSince ??= now;
-      return now.difference(eyesMissingSince!) >= _eyesGracePeriod
-          ? result(configuration.messages.eyesNotVisible)
-          : result();
-    }
-    eyesMissingSince = null;
     if (_uses(LivenessValidation.passiveAntiSpoof) &&
         status != LivenessStatus.move &&
         guidance == null &&
@@ -499,6 +505,7 @@ class LivenessChallenge {
   LivenessResult? _verifyFaceIdentity(
     LivenessObservation observation,
     String? guidance,
+    DateTime now,
   ) {
     final identity = observation.faceIdentity;
     final isFrontal =
@@ -510,28 +517,66 @@ class LivenessChallenge {
     final baseline = faceIdentity;
     if (baseline == null || baseline.length != identity.length) {
       faceIdentity = List<double>.of(identity);
-      identityMismatches = 0;
+      _clearIdentityMismatch();
       return null;
     }
 
-    var squaredDistance = 0.0;
-    for (var i = 0; i < baseline.length; i++) {
-      final delta = identity[i] - baseline[i];
-      squaredDistance += delta * delta;
-    }
-    final distance = math.sqrt(squaredDistance / baseline.length);
+    final distance = _identityDistance(identity, baseline);
     if (distance > configuration.faceIdentityThreshold) {
-      identityMismatches++;
-      if (identityMismatches >= 2) {
+      final candidate = identityMismatchCandidate;
+      if (candidate == null ||
+          candidate.length != identity.length ||
+          _identityDistance(identity, candidate) >
+              configuration.faceIdentityThreshold) {
+        identityMismatchCandidate = List<double>.of(identity);
+        identityMismatches = 1;
+        identityMismatchSince = now;
+      } else {
+        identityMismatches++;
+      }
+      identityClearFrames = 0;
+      _discardCurrentEvidence(now);
+      if (identityMismatches >= 3 &&
+          now.difference(identityMismatchSince!) >= _identityMismatchPeriod) {
         return _reset(configuration.messages.differentFace);
       }
-      return null;
+      return result(configuration.messages.faceCovered);
     }
 
+    if (identityMismatchSince != null && ++identityClearFrames < 2) {
+      _discardCurrentEvidence(now);
+      return result(configuration.messages.faceCovered);
+    }
     // Keep the first aligned identity frozen for the entire session so a
     // replacement face cannot gradually become the new baseline.
-    identityMismatches = 0;
+    _clearIdentityMismatch();
     return null;
+  }
+
+  double _identityDistance(List<double> value, List<double> baseline) {
+    var squaredDistance = 0.0;
+    for (var i = 0; i < baseline.length; i++) {
+      final delta = value[i] - baseline[i];
+      squaredDistance += delta * delta;
+    }
+    return math.sqrt(squaredDistance / baseline.length);
+  }
+
+  void _clearIdentityMismatch() {
+    identityMismatches = 0;
+    identityMismatchCandidate = null;
+    identityMismatchSince = null;
+    identityClearFrames = 0;
+  }
+
+  void _discardCurrentEvidence(DateTime now) {
+    actionFrames = turned = returned = finalCaptureFrames = 0;
+    unstableSince = null;
+    if (status == LivenessStatus.blink || status == LivenessStatus.reopen) {
+      status = LivenessStatus.blink;
+      blinkStartedAt = now;
+      closedAt = null;
+    }
   }
 
   bool get _isActiveChallenge =>
@@ -626,13 +671,13 @@ class LivenessChallenge {
     aligned = turned = returned = finalCaptureFrames = 0;
     actionIndex = actionFrames = 0;
     baseX = baseY = baseW = baseH = baseYaw = null;
-    blinkStartedAt = closedAt = unstableSince = eyesMissingSince =
-        faceMissingSince = null;
+    blinkStartedAt = closedAt = unstableSince = featuresMissingSince =
+        faceMissingSince = identityMismatchSince = null;
     qualityIssueSince = null;
     qualityIssue = null;
     scores.clear();
     faceIdentity = null;
-    identityMismatches = 0;
+    _clearIdentityMismatch();
     return result(message);
   }
 

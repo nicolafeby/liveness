@@ -2,6 +2,7 @@ class LivenessObservation {
   const LivenessObservation({
     required this.faceCount,
     this.eyesDetected = true,
+    this.mouthDetected = true,
     this.eyesOpen = false,
     this.eyeBlinkScore,
     this.faceCenterX = 0,
@@ -18,6 +19,7 @@ class LivenessObservation {
 
   final int faceCount;
   final bool eyesDetected;
+  final bool mouthDetected;
   final bool eyesOpen;
 
   /// Highest MediaPipe blink score for either eye; lower means more open.
@@ -38,6 +40,8 @@ class LivenessObservation {
         faceCount: map['faceCount'] as int,
         eyesDetected:
             map['eyesDetected'] as bool? ?? map.containsKey('eyesOpen'),
+        mouthDetected:
+            map['mouthDetected'] as bool? ?? map.containsKey('mouthOpenScore'),
         eyesOpen: map['eyesOpen'] as bool? ?? false,
         eyeBlinkScore: (map['eyeBlinkScore'] as num?)?.toDouble(),
         faceCenterX: (map['faceCenterX'] as num?)?.toDouble() ?? 0,
