@@ -1,3 +1,12 @@
+## Unreleased
+
+- Detect missing eye and mouth landmarks on Android and iOS, and show unified
+  guidance when the face is partially covered.
+- Tolerate sub-500 ms detector dropouts, then restart the complete verification
+  when the face or required landmarks remain obscured and continuity is lost.
+- Harden same-face verification by requiring a sustained, consistent identity
+  mismatch before restarting and stable recovery frames before continuing.
+
 ## 0.3.0
 
 - Add `LivenessEdgeTheme` for screen colors and camera-guide appearance.
