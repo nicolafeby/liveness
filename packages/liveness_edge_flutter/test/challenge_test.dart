@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:liveness_edge_flutter/src/core/challenge.dart';
 import 'package:liveness_edge_flutter/src/models/liveness_action.dart';
 import 'package:liveness_edge_flutter/src/models/liveness_result.dart';
+import 'package:liveness_edge_flutter/src/models/liveness_quality_issue.dart';
 import 'package:liveness_edge_flutter/src/models/liveness_status.dart';
 import 'package:liveness_edge_flutter/src/models/liveness_validation.dart';
 import 'package:liveness_edge_flutter/src/models/observation.dart';
@@ -27,6 +28,119 @@ void main() {
     }
     return result;
   }
+
+  test('blocks progress when the face is obstructed', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.blink}),
+    );
+    const obstructed = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceVisible: false,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+    );
+
+    final first = challenge.advance(obstructed);
+    final result = challenge.advance(obstructed);
+
+    expect(challenge.status, LivenessStatus.align);
+    expect(first.qualityIssue, isNull);
+    expect(result.instruction, contains('anything covering your face'));
+    expect(result.qualityIssue, LivenessQualityIssue.faceObstructed);
+    expect(result.instruction, isNot(contains('Spoofing')));
+  });
+
+  test('continues after a face obstruction clears', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.blink}),
+    );
+
+    const obstructed = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceVisible: false,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+    );
+    challenge.advance(obstructed);
+    challenge.advance(obstructed);
+    challenge.advance(front);
+    challenge.obstructionClearSince = DateTime.now().subtract(
+      const Duration(seconds: 1),
+    );
+    challenge.obstructionClearFrames = 2;
+    challenge.advance(front);
+    challenge.advance(front);
+
+    expect(challenge.status, LivenessStatus.open);
+  });
+
+  test('does not combine action evidence across an obstruction', () {
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(validations: {LivenessValidation.smile}),
+    );
+    const neutral = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+      smileScore: 0,
+    );
+    const smiling = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+      smileScore: .9,
+    );
+    const obstructed = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceVisible: false,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+      smileScore: .9,
+    );
+
+    challenge.advance(neutral);
+    challenge.advance(neutral);
+    challenge.advance(neutral);
+    expect(challenge.status, LivenessStatus.smile);
+    challenge.advance(smiling);
+    expect(challenge.actionFrames, 1);
+
+    challenge.advance(obstructed);
+    challenge.advance(obstructed);
+    expect(challenge.actionFrames, 0);
+    expect(challenge.status, LivenessStatus.smile);
+
+    challenge.advance(neutral);
+    challenge.obstructionClearSince = DateTime.now().subtract(
+      const Duration(seconds: 1),
+    );
+    challenge.obstructionClearFrames = 2;
+    challenge.advance(neutral);
+    challenge.advance(smiling);
+    expect(challenge.status, LivenessStatus.smile);
+    challenge.advance(smiling);
+    expect(challenge.status, LivenessStatus.returnNeutral);
+  });
 
   test('selects three or four unique active challenges by default', () {
     for (var seed = 0; seed < 30; seed++) {
@@ -348,7 +462,7 @@ void main() {
     final result = challenge.advance(const LivenessObservation(faceCount: 0));
 
     expect(result.status, LivenessStatus.blink);
-    expect(result.instruction, contains('exactly one face'));
+    expect(result.instruction, 'Blink both eyes once.');
   });
 
   test('restarts quickly when face is missing during an active challenge', () {
@@ -363,7 +477,7 @@ void main() {
 
     challenge.advance(const LivenessObservation(faceCount: 0));
     challenge.faceMissingSince = DateTime.now().subtract(
-      const Duration(milliseconds: 1200),
+      const Duration(milliseconds: 1800),
     );
     final reset = challenge.advance(const LivenessObservation(faceCount: 0));
 
@@ -590,6 +704,83 @@ void main() {
 
     expect(reset.status, LivenessStatus.align);
     expect(reset.instruction, contains('different face'));
+  });
+
+  test('treats a face landmark change as obstruction, not a new face', () {
+    const clear = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: true,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+      liveScore: .8,
+      faceIdentity: [0, 0, 0, 0],
+      upperFaceIdentity: [0, 0, 0, 0],
+    );
+    const covered = LivenessObservation(
+      faceCount: 1,
+      eyesOpen: false,
+      faceCenterX: .5,
+      faceCenterY: .5,
+      faceWidth: .4,
+      faceHeight: .5,
+      yaw: 0,
+      liveScore: .99,
+      faceIdentity: [1, 1, 1, 1],
+      upperFaceIdentity: [0, 0, 0, 0],
+    );
+    final challenge = LivenessChallenge(
+      const LivenessConfiguration(
+        validations: {
+          LivenessValidation.blink,
+          LivenessValidation.passiveAntiSpoof,
+        },
+      ),
+    );
+
+    challenge.advance(clear);
+    challenge.advance(clear);
+    challenge.advance(clear);
+    expect(challenge.status, LivenessStatus.blink);
+    final scoreCount = challenge.scores.length;
+
+    final firstCovered = challenge.advance(covered);
+    expect(firstCovered.status, LivenessStatus.blink);
+    expect(challenge.identityMismatches, 0);
+    expect(challenge.scores.length, scoreCount);
+
+    final stillCovered = challenge.advance(covered);
+    expect(stillCovered.status, LivenessStatus.blink);
+    expect(stillCovered.instruction, contains('anything covering your face'));
+    expect(stillCovered.qualityIssue, LivenessQualityIssue.faceObstructed);
+    expect(challenge.actionIndex, 0);
+
+    final coveredAndTurned = LivenessObservation(
+      faceCount: covered.faceCount,
+      eyesOpen: covered.eyesOpen,
+      faceCenterX: covered.faceCenterX,
+      faceCenterY: covered.faceCenterY,
+      faceWidth: covered.faceWidth,
+      faceHeight: covered.faceHeight,
+      yaw: 20,
+      liveScore: covered.liveScore,
+      faceIdentity: covered.faceIdentity,
+      upperFaceIdentity: covered.upperFaceIdentity,
+    );
+    expect(
+      challenge.advance(coveredAndTurned).instruction,
+      contains('anything covering your face'),
+    );
+
+    challenge.advance(clear);
+    challenge.obstructionClearSince = DateTime.now().subtract(
+      const Duration(seconds: 1),
+    );
+    challenge.obstructionClearFrames = 2;
+    expect(challenge.advance(clear).status, LivenessStatus.blink);
+    expect(challenge.faceObstructed, isFalse);
   });
 
   test('does not pass blink on the first frame from a different face', () {

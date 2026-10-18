@@ -1,7 +1,17 @@
-## 0.3.0
+## next release
 
 - Add wall-clock watchdogs for sessions and native detector calls.
 - Expose typed detector error codes, operations, and native diagnostics.
+- Add a non-terminal general face-occlusion quality gate using an on-device
+  XSeg model on Android and iOS; masks, hands, books, and other objects are
+  handled without a hand-specific detector.
+- Add typed quality issues, obstruction enter/exit hysteresis, occlusion-score
+  diagnostics, and action-evidence resets across obstructed frames.
+- Improve obstruction guidance and tolerate slightly longer active-camera
+  dropouts before restarting a challenge.
+
+## 0.3.0
+
 - Add `LivenessEdgeTheme` for screen colors and camera-guide appearance.
 - Move guideline and supporting text styles into `LivenessEdgeTheme`; retain
   the screen-level properties as deprecated compatibility aliases.

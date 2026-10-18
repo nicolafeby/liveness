@@ -8,6 +8,7 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
   private var landmarker: FaceLandmarker?
   private var environment: ORTEnv?
   private var antiSpoof: ORTSession?
+  private var faceOcclusion: ORTSession?
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(name: "liveness_edge_flutter", binaryMessenger: registrar.messenger())
@@ -25,7 +26,7 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
       }
       queue.async { self.respond(result, code: "analysis_failed") { try self.analyze(data.data) } }
     case "close":
-      queue.async { self.landmarker = nil; self.antiSpoof = nil; self.environment = nil; DispatchQueue.main.async { result(nil) } }
+      queue.async { self.landmarker = nil; self.antiSpoof = nil; self.faceOcclusion = nil; self.environment = nil; DispatchQueue.main.async { result(nil) } }
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -58,6 +59,7 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
     let env = try ORTEnv(loggingLevel: .warning)
     environment = env
     antiSpoof = try ORTSession(env: env, modelPath: try asset("minifasnet_v2", "onnx"), sessionOptions: nil)
+    faceOcclusion = try ORTSession(env: env, modelPath: try asset("face_occlusion", "onnx"), sessionOptions: nil)
   }
 
   private func analyze(_ data: Data) throws -> [String: Any] {
@@ -93,18 +95,73 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
     let mouthOpenScore=calculateMouthOpenScore(points, blend["jawOpen"] ?? 0)
     let left=points[33], right=points[263], nose=points[1]; let dx=right.x-left.x, dy=right.y-left.y
     let offset=((nose.x-(left.x+right.x)/2)*dx+(nose.y-(left.y+right.y)/2)*dy)/(dx*dx+dy*dy)
-    var output:[String:Any] = ["faceCount":1,"eyesDetected":eyesDetected,"eyesOpen":eyesOpen,"eyeBlinkScore":Double(eyeBlinkScore),"faceCenterX":Double((minX+maxX)/2),
+    let yaw = -Double(atan2(2*offset,1))*180/Double.pi
+    let occlusionScore = abs(yaw) <= 15 ? try calculateFaceOcclusionScore(data,width,height,points) : 0
+    var output:[String:Any] = ["faceCount":1,"eyesDetected":eyesDetected,"faceVisible":occlusionScore < 0.25,"faceOcclusionScore":occlusionScore,"eyesOpen":eyesOpen,"eyeBlinkScore":Double(eyeBlinkScore),"faceCenterX":Double((minX+maxX)/2),
       "faceCenterY":Double((minY+maxY)/2),"faceWidth":Double(maxX-minX),"faceHeight":Double(maxY-minY),
       // camera_avfoundation's front-camera BGRA coordinates produce the
       // opposite yaw sign from the user-facing left/right convention used by
       // the Dart challenge (and by Android's camera stream). Normalize it at
       // the platform boundary so "turn left" follows the user's own left.
-      "yaw":-Double(atan2(2*offset,1))*180/Double.pi,"smileScore":Double(smileScore),
+      "yaw":yaw,"smileScore":Double(smileScore),
       "mouthOpenScore":Double(mouthOpenScore),"liveScore":try passive(data,width,height,minX,minY,maxX,maxY),
-      "faceIdentity":faceIdentity(points)]
+      "faceIdentity":faceIdentity(points),"upperFaceIdentity":upperFaceIdentity(points)]
     let mean = luminance(data,width,height,minX,minY,maxX,maxY)
     if mean < 55 { output["lighting"]="dark" } else if mean > 205 { output["lighting"]="bright" }
     return output
+  }
+
+  private func calculateFaceOcclusionScore(_ data:Data,_ width:Int,_ height:Int,_ points:[NormalizedLandmark]) throws -> Double {
+    let source:[(Float,Float)] = [
+      ((points[33].x+points[133].x)*0.5*Float(width),(points[33].y+points[133].y)*0.5*Float(height)),
+      ((points[263].x+points[362].x)*0.5*Float(width),(points[263].y+points[362].y)*0.5*Float(height)),
+      (points[1].x*Float(width),points[1].y*Float(height)),
+      (points[61].x*Float(width),points[61].y*Float(height)),
+      (points[291].x*Float(width),points[291].y*Float(height))
+    ]
+    let target:[(Float,Float)] = [
+      (0.35342266*256,0.39285716*256),(0.62797622*256,0.39285716*256),
+      (0.48660713*256,0.54017860*256),(0.38839287*256,0.68750011*256),
+      (0.59821427*256,0.68750011*256)
+    ]
+    let matrix=similarityTransform(source,target),a=matrix.0,b=matrix.1,c=matrix.2,d=matrix.3
+    let determinant=max(0.00000001,a*a+b*b)
+    var input=[Float](repeating:0,count:256*256*3)
+    data.withUnsafeBytes { raw in
+      let pixels=raw.bindMemory(to:UInt8.self)
+      for y in 0..<256 { for x in 0..<256 {
+        let tx=Float(x)-c,ty=Float(y)-d
+        let sx=max(0,min(width-1,Int((a*tx+b*ty)/determinant)))
+        let sy=max(0,min(height-1,Int((-b*tx+a*ty)/determinant)))
+        let sourceIndex=8+(sy*width+sx)*3,outputIndex=(y*256+x)*3
+        input[outputIndex]=Float(pixels[sourceIndex+2])/255
+        input[outputIndex+1]=Float(pixels[sourceIndex+1])/255
+        input[outputIndex+2]=Float(pixels[sourceIndex])/255
+      }}
+    }
+    let tensorData=input.withUnsafeBytes{Data($0)}
+    let value=try ORTValue(tensorData:NSMutableData(data:tensorData),elementType:.float,shape:[1,256,256,3])
+    let session=faceOcclusion!,inputName=try session.inputNames()[0],outputName=try session.outputNames()[0]
+    let outputs=try session.run(withInputs:[inputName:value],outputNames:[outputName],runOptions:nil)
+    guard let bytes=try outputs[outputName]?.tensorData() as Data? else { throw edge("The face-occlusion output is empty") }
+    let mask:[Float]=bytes.withUnsafeBytes{Array($0.bindMemory(to:Float.self))}
+    func average(_ x0:Int,_ y0:Int,_ x1:Int,_ y1:Int)->Double {
+      var sum=0.0,count=0
+      for y in y0..<y1 { for x in x0..<x1 { sum += Double(mask[y*256+x]);count += 1 } }
+      return sum/Double(max(1,count))
+    }
+    let visibility=min(1,max(0,min(average(55,70,201,138)/0.72,average(62,125,194,210)/0.68)))
+    return 1-visibility
+  }
+
+  private func similarityTransform(_ source:[(Float,Float)],_ target:[(Float,Float)]) -> (Float,Float,Float,Float) {
+    let sourceX=source.reduce(0){$0+$1.0}/Float(source.count),sourceY=source.reduce(0){$0+$1.1}/Float(source.count)
+    let targetX=target.reduce(0){$0+$1.0}/Float(target.count),targetY=target.reduce(0){$0+$1.1}/Float(target.count)
+    var dot:Float=0,cross:Float=0,denominator:Float=0
+    for i in source.indices { let sx=source[i].0-sourceX,sy=source[i].1-sourceY,tx=target[i].0-targetX,ty=target[i].1-targetY
+      dot += sx*tx+sy*ty;cross += sx*ty-sy*tx;denominator += sx*sx+sy*sy }
+    denominator=max(0.00000001,denominator);let a=dot/denominator,b=cross/denominator
+    return (a,b,targetX-a*sourceX+b*sourceY,targetY-b*sourceX-a*sourceY)
   }
 
   private func calculateMouthOpenScore(_ points: [NormalizedLandmark], _ blendScore: Float) -> Float {
@@ -131,10 +188,21 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
     // landmarks are excluded so expression changes do not look like a new face.
     let indices = [
       10, 152, 127, 356, 234, 454, 93, 323, 132, 361,
-      33, 133, 159, 145, 263, 362, 386, 374,
+      33, 133, 263, 362,
       70, 105, 107, 336, 334, 300,
       1, 2, 4, 5, 168, 197, 195, 6
     ]
+    return indices.flatMap { index -> [Double] in
+      let x=points[index].x-cx,y=points[index].y-cy
+      return [Double((x*c+y*s)/scale),Double((-x*s+y*c)/scale)]
+    }
+  }
+
+  private func upperFaceIdentity(_ points: [NormalizedLandmark]) -> [Double] {
+    let left=points[33],right=points[263],dx=right.x-left.x,dy=right.y-left.y
+    let scale=max(0.0001,sqrt(dx*dx+dy*dy)),angle=atan2(dy,dx),c=cos(angle),s=sin(angle)
+    let cx=(left.x+right.x)/2,cy=(left.y+right.y)/2
+    let indices = [10,33,133,263,362,70,105,107,336,334,300,168]
     return indices.flatMap { index -> [Double] in
       let x=points[index].x-cx,y=points[index].y-cy
       return [Double((x*c+y*s)/scale),Double((-x*s+y*c)/scale)]

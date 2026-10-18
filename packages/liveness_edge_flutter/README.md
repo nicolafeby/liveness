@@ -168,7 +168,8 @@ LivenessEdgeScreen(
 `roundedRectangle`. `cameraBorderRadius` applies to rounded rectangles. The
 header receives a read-only `LivenessEdgeViewState` containing the current
 status, instruction, supporting text, progress, camera readiness, and error
-state. The legacy `guidelineTextStyle` and `supportingTextStyle` screen
+state, plus the current typed `qualityIssue` when progress is blocked. The
+legacy `guidelineTextStyle` and `supportingTextStyle` screen
 properties remain available for backward compatibility but are deprecated.
 
 ### Configuration
@@ -204,7 +205,7 @@ The package keeps a frozen, normalized, on-device landmark descriptor for the
 first aligned face. If a different frontal face is detected in two consecutive
 frames, the active challenge returns to alignment. A session cannot pass while
 an identity mismatch is pending. If no valid single face is detected during an
-active challenge for 1.2 seconds, the flow also returns to alignment. Before a
+active challenge for 1.8 seconds, the flow also returns to alignment. Before a
 challenge starts, the grace period remains two seconds.
 
 ### Callback behavior
@@ -227,6 +228,7 @@ challenge starts, the grace period remains two seconds.
 | `passed` | Always | Convenience getter that is `true` only when `status` is `passed`. |
 | `instruction` | Always | Localized guidance or the terminal result message. |
 | `framesProcessed` | Always | Number of analyzed frames in the current attempt. |
+| `qualityIssue` | While input quality blocks progress | Typed `LivenessQualityIssue`, such as `faceObstructed`, for custom UI and diagnostics. |
 | `imageBytes` | Success only | Mirrored, portrait-normalized JPEG cropped to the face-guide aspect ratio. |
 | `passiveScore` | Terminal result when passive anti-spoofing is enabled | Median of the recent on-device live-score samples. Higher values are considered more likely to be live. |
 
@@ -287,14 +289,18 @@ transaction. For those flows, combine local inference with a server-issued
 nonce, platform attestation, replay protection, and a trusted server-side
 decision.
 
-The passive model primarily targets printed-photo and screen-replay attacks. It
-has not been validated by this project against masks, 3D attacks, camera
+The passive model primarily targets printed-photo and screen-replay attacks.
+General face-occlusion segmentation is an input-quality gate, not proof of a
+spoof. It prevents progress when required facial regions are covered by a mask,
+hand, book, or another object. The package has not been validated by this
+project against 3D attacks, camera
 injection, rooted devices, or modified applications. The host application is
 responsible for consent, retention, logging, screenshots, backups, and privacy
 disclosures.
 
-Review the licenses and suitability of MediaPipe, ONNX Runtime, and the bundled
-MiniFASNetV2 model before commercial distribution.
+Review the licenses and suitability of MediaPipe, ONNX Runtime, MiniFASNetV2,
+and the bundled XSeg face-occlusion model before commercial distribution. XSeg
+is distributed under GPL-3.0; see `THIRD_PARTY_NOTICES.md` and `LICENSES/`.
 
 ## Troubleshooting
 

@@ -59,6 +59,21 @@ void main() {
         attack['expectedFaceCount'],
         reason: '$id did not exercise the anti-spoof model',
       );
+      expect(
+        raw['faceVisible'],
+        isA<bool>(),
+        reason: '$id returned no face-visibility quality signal',
+      );
+      expect(
+        raw['faceOcclusionScore'],
+        isA<num>(),
+        reason: '$id returned no general face-occlusion score',
+      );
+      expect(
+        raw['upperFaceIdentity'],
+        isA<List<Object?>>(),
+        reason: '$id returned no upper-face identity signal',
+      );
       final score = (raw['liveScore'] as num).toDouble();
       expect(score, inInclusiveRange(0, 1), reason: '$id score is invalid');
       expect(

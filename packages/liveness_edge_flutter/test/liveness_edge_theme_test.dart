@@ -23,11 +23,13 @@ void main() {
       progress: .5,
       isCameraReady: true,
       hasError: false,
+      qualityIssue: LivenessQualityIssue.faceObstructed,
     );
 
     expect(state.status, LivenessStatus.blink);
     expect(state.progress, .5);
     expect(state.isCameraReady, isTrue);
+    expect(state.qualityIssue, LivenessQualityIssue.faceObstructed);
   });
 
   test('theme accepts guideline and supporting text styles', () {

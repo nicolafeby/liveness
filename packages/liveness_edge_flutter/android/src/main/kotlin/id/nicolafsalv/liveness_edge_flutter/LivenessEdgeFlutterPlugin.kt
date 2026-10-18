@@ -29,6 +29,7 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
     private var landmarker: FaceLandmarker? = null
     private var environment: OrtEnvironment? = null
     private var antiSpoof: OrtSession? = null
+    private var faceOcclusion: OrtSession? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
@@ -59,6 +60,7 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
             .setRunningMode(RunningMode.IMAGE).setNumFaces(2).setOutputFaceBlendshapes(true).build())
         environment = OrtEnvironment.getEnvironment()
         antiSpoof = environment!!.createSession(context.assets.open("minifasnet_v2.onnx").use { it.readBytes() }, OrtSession.SessionOptions())
+        faceOcclusion = environment!!.createSession(context.assets.open("face_occlusion.onnx").use { it.readBytes() }, OrtSession.SessionOptions())
     }
 
     private fun analyze(data: ByteArray): Map<String, Any?> {
@@ -71,7 +73,8 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
         val pixels = IntArray(width * height); var p = 8
         for (i in pixels.indices) { val b=data[p++].toInt()and 255; val g=data[p++].toInt()and 255; val r=data[p++].toInt()and 255; pixels[i]=-0x1000000 or(r shl 16)or(g shl 8)or b }
         val bitmap = Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
-        val detected = landmarker!!.detect(BitmapImageBuilder(bitmap).build())
+        val image = BitmapImageBuilder(bitmap).build()
+        val detected = landmarker!!.detect(image)
         if (detected.faceLandmarks().size != 1) return mapOf("faceCount" to detected.faceLandmarks().size)
         val points=detected.faceLandmarks()[0]; val minX=points.minOf{it.x()}; val maxX=points.maxOf{it.x()}; val minY=points.minOf{it.y()}; val maxY=points.maxOf{it.y()}
         val blend=detected.faceBlendshapes().orElse(emptyList()).getOrNull(0).orEmpty().associate{it.categoryName() to it.score()}
@@ -82,11 +85,58 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
         val mouthOpenScore=blend["jawOpen"]?:0f
         val left=points[33]; val right=points[263]; val nose=points[1]; val dx=right.x()-left.x(); val dy=right.y()-left.y()
         val offset=((nose.x()-(left.x()+right.x())/2)*dx+(nose.y()-(left.y()+right.y())/2)*dy)/(dx*dx+dy*dy)
-        return mapOf("faceCount" to 1,"eyesDetected" to eyesDetected,"eyesOpen" to eyesOpen,"eyeBlinkScore" to eyeBlinkScore.toDouble(),"faceCenterX" to ((minX+maxX)/2).toDouble(),"faceCenterY" to ((minY+maxY)/2).toDouble(),
+        val yaw=Math.toDegrees(atan2((2*offset).toDouble(),1.0))
+        val faceOcclusionScore=if(kotlin.math.abs(yaw)<=15) faceOcclusionScore(bitmap,points) else 0.0
+        return mapOf("faceCount" to 1,"eyesDetected" to eyesDetected,"faceVisible" to (faceOcclusionScore<.25),"faceOcclusionScore" to faceOcclusionScore,"eyesOpen" to eyesOpen,"eyeBlinkScore" to eyeBlinkScore.toDouble(),"faceCenterX" to ((minX+maxX)/2).toDouble(),"faceCenterY" to ((minY+maxY)/2).toDouble(),
             "faceWidth" to (maxX-minX).toDouble(),"faceHeight" to (maxY-minY).toDouble(),"lighting" to lighting(bitmap,minX,minY,maxX,maxY),
-            "yaw" to Math.toDegrees(atan2((2*offset).toDouble(),1.0)),"smileScore" to smileScore.toDouble(),
+            "yaw" to yaw,"smileScore" to smileScore.toDouble(),
             "mouthOpenScore" to mouthOpenScore.toDouble(),"liveScore" to passive(bitmap,minX,minY,maxX,maxY),
-            "faceIdentity" to faceIdentity(points))
+            "faceIdentity" to faceIdentity(points),"upperFaceIdentity" to upperFaceIdentity(points))
+    }
+
+    private fun faceOcclusionScore(bitmap:Bitmap,points:List<com.google.mediapipe.tasks.components.containers.NormalizedLandmark>):Double {
+        val source=arrayOf(
+            floatArrayOf((points[33].x()+points[133].x())*.5f*bitmap.width,(points[33].y()+points[133].y())*.5f*bitmap.height),
+            floatArrayOf((points[263].x()+points[362].x())*.5f*bitmap.width,(points[263].y()+points[362].y())*.5f*bitmap.height),
+            floatArrayOf(points[1].x()*bitmap.width,points[1].y()*bitmap.height),
+            floatArrayOf(points[61].x()*bitmap.width,points[61].y()*bitmap.height),
+            floatArrayOf(points[291].x()*bitmap.width,points[291].y()*bitmap.height)
+        )
+        val target=arrayOf(
+            floatArrayOf(.35342266f*256,.39285716f*256),floatArrayOf(.62797622f*256,.39285716f*256),
+            floatArrayOf(.48660713f*256,.54017860f*256),floatArrayOf(.38839287f*256,.68750011f*256),
+            floatArrayOf(.59821427f*256,.68750011f*256)
+        )
+        val matrix=similarityTransform(source,target)
+        val a=matrix[0];val b=matrix[1];val c=matrix[2];val d=matrix[3];val determinant=(a*a+b*b).coerceAtLeast(1e-8f)
+        val input=FloatArray(256*256*3)
+        for(y in 0 until 256)for(x in 0 until 256){
+            val tx=x-c;val ty=y-d
+            val sx=((a*tx+b*ty)/determinant).toInt().coerceIn(0,bitmap.width-1)
+            val sy=((-b*tx+a*ty)/determinant).toInt().coerceIn(0,bitmap.height-1)
+            val color=bitmap.getPixel(sx,sy);val i=(y*256+x)*3
+            input[i]=(color shr 16 and 255)/255f;input[i+1]=(color shr 8 and 255)/255f;input[i+2]=(color and 255)/255f
+        }
+        val session=faceOcclusion!!
+        OnnxTensor.createTensor(environment!!,FloatBuffer.wrap(input),longArrayOf(1,256,256,3)).use{tensor->session.run(mapOf(session.inputNames.first() to tensor)).use{output->
+            val rows=((output[0].value as Array<*>)[0] as Array<*>)
+            fun average(x0:Int,y0:Int,x1:Int,y1:Int):Double{var sum=0.0;var count=0
+                for(y in y0 until y1){val columns=rows[y] as Array<*>;for(x in x0 until x1){sum+=(columns[x] as FloatArray)[0];count++}}
+                return sum/count.coerceAtLeast(1)}
+            val upper=average(55,70,201,138);val lower=average(62,125,194,210)
+            val visibility=minOf(upper/.72,lower/.68).coerceIn(0.0,1.0)
+            return 1.0-visibility
+        }}
+    }
+
+    private fun similarityTransform(source:Array<FloatArray>,target:Array<FloatArray>):FloatArray {
+        val sourceX=source.sumOf{it[0].toDouble()}.toFloat()/source.size;val sourceY=source.sumOf{it[1].toDouble()}.toFloat()/source.size
+        val targetX=target.sumOf{it[0].toDouble()}.toFloat()/target.size;val targetY=target.sumOf{it[1].toDouble()}.toFloat()/target.size
+        var dot=0f;var cross=0f;var denominator=0f
+        for(i in source.indices){val sx=source[i][0]-sourceX;val sy=source[i][1]-sourceY;val tx=target[i][0]-targetX;val ty=target[i][1]-targetY
+            dot+=sx*tx+sy*ty;cross+=sx*ty-sy*tx;denominator+=sx*sx+sy*sy}
+        val a=dot/denominator.coerceAtLeast(1e-8f);val b=cross/denominator.coerceAtLeast(1e-8f)
+        return floatArrayOf(a,b,targetX-a*sourceX+b*sourceY,targetY-b*sourceX-a*sourceY)
     }
 
     private fun faceIdentity(points: List<com.google.mediapipe.tasks.components.containers.NormalizedLandmark>): List<Double> {
@@ -98,10 +148,19 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
         // should not fail merely because the user changes expression.
         val indices=intArrayOf(
             10, 152, 127, 356, 234, 454, 93, 323, 132, 361,
-            33, 133, 159, 145, 263, 362, 386, 374,
+            33, 133, 263, 362,
             70, 105, 107, 336, 334, 300,
             1, 2, 4, 5, 168, 197, 195, 6
         )
+        return indices.flatMap { index -> val point=points[index];val x=point.x()-cx;val y=point.y()-cy
+            listOf(((x*c+y*s)/scale).toDouble(),((-x*s+y*c)/scale).toDouble()) }
+    }
+
+    private fun upperFaceIdentity(points: List<com.google.mediapipe.tasks.components.containers.NormalizedLandmark>): List<Double> {
+        val left=points[33];val right=points[263];val dx=right.x()-left.x();val dy=right.y()-left.y()
+        val scale=sqrt(dx*dx+dy*dy).coerceAtLeast(.0001f);val angle=atan2(dy,dx);val c=cos(angle);val s=sin(angle)
+        val cx=(left.x()+right.x())/2;val cy=(left.y()+right.y())/2
+        val indices=intArrayOf(10,33,133,263,362,70,105,107,336,334,300,168)
         return indices.flatMap { index -> val point=points[index];val x=point.x()-cx;val y=point.y()-cy
             listOf(((x*c+y*s)/scale).toDouble(),((-x*s+y*c)/scale).toDouble()) }
     }
@@ -123,6 +182,6 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
             val logits=(out[0].value as Array<*>)[0] as FloatArray;val maximum=logits.max();val values=logits.map{exp((it-maximum).toDouble())};return values[1]/values.sum()}}
     }
 
-    private fun closeModels(){landmarker?.close();landmarker=null;antiSpoof?.close();antiSpoof=null;environment?.close();environment=null}
+    private fun closeModels(){landmarker?.close();landmarker=null;antiSpoof?.close();antiSpoof=null;faceOcclusion?.close();faceOcclusion=null;environment?.close();environment=null}
     override fun onDetachedFromEngine(binding:FlutterPlugin.FlutterPluginBinding){channel.setMethodCallHandler(null);closeModels();executor.shutdown()}
 }

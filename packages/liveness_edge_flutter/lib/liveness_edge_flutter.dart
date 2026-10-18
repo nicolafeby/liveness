@@ -6,11 +6,17 @@
 library;
 
 export 'src/core/challenge.dart'
-    show FaceIdentitySensitivity, LivenessConfiguration, LivenessMessages, PassiveAntiSpoofSensitivity;
-export 'src/core/detector.dart' show LivenessEdgeErrorCode, LivenessEdgeException, LivenessEdgeOperation;
+    show
+        FaceIdentitySensitivity,
+        LivenessConfiguration,
+        LivenessMessages,
+        PassiveAntiSpoofSensitivity;
+export 'src/core/detector.dart'
+    show LivenessEdgeErrorCode, LivenessEdgeException, LivenessEdgeOperation;
 export 'src/models/liveness_result.dart';
 export 'src/models/liveness_action.dart';
 export 'src/models/liveness_status.dart';
+export 'src/models/liveness_quality_issue.dart';
 export 'src/models/liveness_validation.dart';
 export 'src/screen/liveness_edge_screen.dart';
 export 'src/screen/liveness_edge_theme.dart';

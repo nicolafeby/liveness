@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'liveness_status.dart';
+import 'liveness_quality_issue.dart';
 
 /// The latest state or final output of a liveness session.
 class LivenessResult {
@@ -11,6 +12,7 @@ class LivenessResult {
     required this.framesProcessed,
     this.imageBytes,
     this.passiveScore,
+    this.qualityIssue,
   });
 
   /// Stage reached by the liveness challenge.
@@ -27,6 +29,9 @@ class LivenessResult {
 
   /// Median passive anti-spoof score, where a higher value is more likely live.
   final double? passiveScore;
+
+  /// Input-quality problem currently blocking progress, if any.
+  final LivenessQualityIssue? qualityIssue;
 
   /// Whether this result completed successfully.
   bool get passed => status == LivenessStatus.passed;

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../models/liveness_result.dart';
+import '../models/liveness_quality_issue.dart';
 import '../models/liveness_action.dart';
 import '../models/liveness_status.dart';
 import '../models/liveness_validation.dart';
@@ -66,6 +67,7 @@ class LivenessMessages {
         'Face the camera so your face direction can be detected.',
     this.eyesNotVisible =
         'Your eyes are not clearly visible. Face the camera and make sure they are not covered.',
+    this.faceObstructed = 'Remove anything covering your face.',
     this.openEyes = 'Open both eyes and look at the camera.',
     this.differentFace =
         'A different face was detected. Verification has been restarted.',
@@ -100,6 +102,7 @@ class LivenessMessages {
     this.positionFaceInFrame = 'Position your entire face inside the frame.',
     this.holdStill = 'Keep your face still.',
     this.moveSlowly = 'Follow the instruction with a slow movement.',
+    this.keepFullFaceVisible = 'Keep your full face visible.',
     this.faceVerified = 'Face verified successfully.',
     this.verificationUnsuccessful = 'Verification was unsuccessful.',
     this.tryAgain = 'Try again',
@@ -115,6 +118,7 @@ class LivenessMessages {
   final String blinkNotDetected;
   final String faceDirectionUnavailable;
   final String eyesNotVisible;
+  final String faceObstructed;
   final String openEyes;
   final String differentFace;
   final String verifyingSameFace;
@@ -145,6 +149,7 @@ class LivenessMessages {
   final String positionFaceInFrame;
   final String holdStill;
   final String moveSlowly;
+  final String keepFullFaceVisible;
   final String faceVerified;
   final String verificationUnsuccessful;
   final String tryAgain;
@@ -264,11 +269,16 @@ class LivenessChallenge {
       unstableSince,
       eyesMissingSince,
       faceMissingSince,
-      qualityIssueSince;
-  String? qualityIssue;
+      qualityIssueSince,
+      obstructionClearSince;
+  LivenessQualityIssue? qualityIssue;
   final List<double> scores = [];
   List<double>? faceIdentity;
+  List<double>? upperFaceIdentity;
   int identityMismatches = 0;
+  bool faceObstructed = false;
+  int obstructionFrames = 0;
+  int obstructionClearFrames = 0;
 
   /// Overall session progress, including alignment and randomized actions.
   ///
@@ -310,12 +320,13 @@ class LivenessChallenge {
   }
 
   static const _inputGracePeriod = Duration(milliseconds: 750);
+  static const _obstructionClearPeriod = Duration(milliseconds: 600);
   static const _eyesGracePeriod = Duration(milliseconds: 500);
   // Face landmarks can briefly disappear during a blink or head turn,
   // especially on front-camera frames affected by motion blur. Keep the
   // challenge active through a short detector dropout; identity matching is
   // still applied when a face returns, so this does not permit a face swap.
-  static const _activeFaceLossGracePeriod = Duration(milliseconds: 1200);
+  static const _activeFaceLossGracePeriod = Duration(milliseconds: 1800);
   static const _idleFaceLossGracePeriod = Duration(seconds: 2);
 
   bool _uses(LivenessValidation validation) =>
@@ -330,38 +341,60 @@ class LivenessChallenge {
     }
     if (o.faceCount != 1) {
       faceMissingSince ??= now;
-      final message = configuration.messages.oneFaceRequired;
       final isActive = _isActiveChallenge;
       final gracePeriod = isActive
           ? _activeFaceLossGracePeriod
           : _idleFaceLossGracePeriod;
-      return now.difference(faceMissingSince!) >= gracePeriod
-          ? _reset(
-              isActive
-                  ? configuration.messages.faceContinuityLost
-                  : configuration.messages.faceNotDetected,
-            )
-          : result(message);
+      if (now.difference(faceMissingSince!) >= gracePeriod) {
+        return _reset(
+          isActive
+              ? configuration.messages.faceContinuityLost
+              : configuration.messages.faceNotDetected,
+          LivenessQualityIssue.faceMissing,
+        );
+      }
+      return isActive
+          ? result()
+          : result(
+              configuration.messages.oneFaceRequired,
+              LivenessQualityIssue.faceMissing,
+            );
     }
     faceMissingSince = null;
     if (o.lighting == 'dark') {
-      return _handleInputIssue(now, configuration.messages.faceTooDark);
+      return _handleInputIssue(
+        now,
+        LivenessQualityIssue.tooDark,
+        configuration.messages.faceTooDark,
+      );
     }
     if (o.lighting == 'bright') {
-      return _handleInputIssue(now, configuration.messages.faceTooBright);
+      return _handleInputIssue(
+        now,
+        LivenessQualityIssue.tooBright,
+        configuration.messages.faceTooBright,
+      );
     }
+    final obstructionResult = _handleFaceVisibility(o, now);
+    if (obstructionResult != null) return obstructionResult;
+    final guidance = _alignment(o);
+    final identityReset = _verifyFaceIdentity(o, guidance, now);
+    if (identityReset != null) return identityReset;
     qualityIssueSince = null;
     qualityIssue = null;
-    final guidance = _alignment(o);
-    final identityReset = _verifyFaceIdentity(o, guidance);
-    if (identityReset != null) return identityReset;
     if (!o.eyesDetected) {
       if (!_isActiveChallenge) {
-        return result(configuration.messages.eyesNotVisible);
+        return result(
+          configuration.messages.eyesNotVisible,
+          LivenessQualityIssue.eyesObstructed,
+        );
       }
       eyesMissingSince ??= now;
       return now.difference(eyesMissingSince!) >= _eyesGracePeriod
-          ? result(configuration.messages.eyesNotVisible)
+          ? result(
+              configuration.messages.eyesNotVisible,
+              LivenessQualityIssue.eyesObstructed,
+            )
           : result();
     }
     eyesMissingSince = null;
@@ -505,28 +538,50 @@ class LivenessChallenge {
   LivenessResult? _verifyFaceIdentity(
     LivenessObservation observation,
     String? guidance,
+    DateTime now,
   ) {
     final identity = observation.faceIdentity;
+    final upperIdentity = observation.upperFaceIdentity;
     final isFrontal =
         guidance == null &&
         observation.eyesDetected &&
         (observation.yaw?.abs() ?? 0) <= 10;
-    if (identity == null || identity.isEmpty || !isFrontal) return null;
+    if (identity == null || identity.isEmpty || !isFrontal) {
+      return faceObstructed
+          ? result(
+              configuration.messages.faceObstructed,
+              LivenessQualityIssue.faceObstructed,
+            )
+          : null;
+    }
 
     final baseline = faceIdentity;
     if (baseline == null || baseline.length != identity.length) {
       faceIdentity = List<double>.of(identity);
+      upperFaceIdentity = upperIdentity == null
+          ? null
+          : List<double>.of(upperIdentity);
       identityMismatches = 0;
+      faceObstructed = false;
       return null;
     }
 
-    var squaredDistance = 0.0;
-    for (var i = 0; i < baseline.length; i++) {
-      final delta = identity[i] - baseline[i];
-      squaredDistance += delta * delta;
-    }
-    final distance = math.sqrt(squaredDistance / baseline.length);
+    final distance = _identityDistance(identity, baseline);
     if (distance > configuration.faceIdentityThreshold) {
+      final upperBaseline = upperFaceIdentity;
+      if (upperIdentity != null &&
+          upperBaseline != null &&
+          upperIdentity.length == upperBaseline.length &&
+          _identityDistance(upperIdentity, upperBaseline) <=
+              configuration.faceIdentityThreshold) {
+        identityMismatches = 0;
+        _activateFaceObstruction(now);
+        return result(
+          configuration.messages.faceObstructed,
+          LivenessQualityIssue.faceObstructed,
+        );
+      }
+      faceObstructed = false;
       identityMismatches++;
       if (identityMismatches >= 2) {
         return _reset(configuration.messages.differentFace);
@@ -537,7 +592,17 @@ class LivenessChallenge {
     // Keep the first aligned identity frozen for the entire session so a
     // replacement face cannot gradually become the new baseline.
     identityMismatches = 0;
+    faceObstructed = false;
     return null;
+  }
+
+  double _identityDistance(List<double> value, List<double> baseline) {
+    var squaredDistance = 0.0;
+    for (var i = 0; i < baseline.length; i++) {
+      final delta = value[i] - baseline[i];
+      squaredDistance += delta * delta;
+    }
+    return math.sqrt(squaredDistance / baseline.length);
   }
 
   bool get _isActiveChallenge =>
@@ -549,14 +614,106 @@ class LivenessChallenge {
       status == LivenessStatus.returnNeutral ||
       status == LivenessStatus.finalCapture;
 
-  LivenessResult _handleInputIssue(DateTime now, String message) {
-    if (!_isActiveChallenge) return _reset(message);
-    if (qualityIssue != message) {
-      qualityIssue = message;
+  LivenessResult? _handleFaceVisibility(
+    LivenessObservation observation,
+    DateTime now,
+  ) {
+    if (!observation.faceVisible) {
+      obstructionFrames++;
+      obstructionClearFrames = 0;
+      obstructionClearSince = null;
+      _restartCurrentAction(now);
+      if (obstructionFrames >= 2) {
+        _activateFaceObstruction(now);
+        return result(
+          configuration.messages.faceObstructed,
+          LivenessQualityIssue.faceObstructed,
+        );
+      }
+      // Block progress immediately, but wait for a second consecutive frame
+      // before replacing the current instruction.
+      return result();
+    }
+
+    obstructionFrames = 0;
+    if (!faceObstructed) {
+      obstructionClearFrames = 0;
+      obstructionClearSince = null;
+      return null;
+    }
+
+    final isCleanFrontalFrame =
+        (observation.yaw?.abs() ?? double.infinity) <= 10 &&
+        _alignment(observation) == null;
+    if (!isCleanFrontalFrame) {
+      obstructionClearFrames = 0;
+      obstructionClearSince = null;
+      return result(
+        configuration.messages.faceObstructed,
+        LivenessQualityIssue.faceObstructed,
+      );
+    }
+
+    obstructionClearSince ??= now;
+    obstructionClearFrames++;
+    if (obstructionClearFrames < 3 ||
+        now.difference(obstructionClearSince!) < _obstructionClearPeriod) {
+      return result(
+        configuration.messages.faceObstructed,
+        LivenessQualityIssue.faceObstructed,
+      );
+    }
+
+    faceObstructed = false;
+    obstructionClearFrames = 0;
+    obstructionClearSince = null;
+    qualityIssue = null;
+    qualityIssueSince = null;
+    _restartCurrentAction(now);
+    return null;
+  }
+
+  void _activateFaceObstruction(DateTime now) {
+    faceObstructed = true;
+    obstructionClearFrames = 0;
+    obstructionClearSince = null;
+    qualityIssue = LivenessQualityIssue.faceObstructed;
+    qualityIssueSince ??= now;
+    _restartCurrentAction(now);
+  }
+
+  void _restartCurrentAction(DateTime now) {
+    actionFrames = turned = returned = finalCaptureFrames = 0;
+    switch (status) {
+      case LivenessStatus.blink || LivenessStatus.reopen:
+        _beginBlink(now);
+      case LivenessStatus.move:
+        break;
+      case LivenessStatus.smile ||
+          LivenessStatus.openMouth ||
+          LivenessStatus.returnNeutral:
+        if (actionIndex < _actions.length) _beginAction(now);
+      case LivenessStatus.finalCapture:
+        break;
+      case LivenessStatus.align || LivenessStatus.open:
+        aligned = 0;
+      case LivenessStatus.passed || LivenessStatus.failed:
+        break;
+    }
+  }
+
+  LivenessResult _handleInputIssue(
+    DateTime now,
+    LivenessQualityIssue issue,
+    String message,
+  ) {
+    if (!_isActiveChallenge) return _reset(message, issue);
+    if (qualityIssue != issue) {
+      qualityIssue = issue;
       qualityIssueSince = now;
     }
     return now.difference(qualityIssueSince!) >= _inputGracePeriod
-        ? result(message)
+        ? result(message, issue)
         : result();
   }
 
@@ -627,7 +784,10 @@ class LivenessChallenge {
     return null;
   }
 
-  LivenessResult _reset(String message) {
+  LivenessResult _reset(
+    String message, [
+    LivenessQualityIssue? resultQualityIssue,
+  ]) {
     status = LivenessStatus.align;
     aligned = turned = returned = finalCaptureFrames = 0;
     actionIndex = actionFrames = 0;
@@ -635,11 +795,15 @@ class LivenessChallenge {
     blinkStartedAt = closedAt = unstableSince = eyesMissingSince =
         faceMissingSince = null;
     qualityIssueSince = null;
+    obstructionClearSince = null;
     qualityIssue = null;
     scores.clear();
     faceIdentity = null;
+    upperFaceIdentity = null;
     identityMismatches = 0;
-    return result(message);
+    faceObstructed = false;
+    obstructionFrames = obstructionClearFrames = 0;
+    return result(message, resultQualityIssue);
   }
 
   double _median(List<double> values) {
@@ -672,10 +836,14 @@ class LivenessChallenge {
     );
   }
 
-  LivenessResult result([String? message]) => LivenessResult(
+  LivenessResult result([
+    String? message,
+    LivenessQualityIssue? resultQualityIssue,
+  ]) => LivenessResult(
     status: status,
     framesProcessed: frames,
     passiveScore: scores.isEmpty ? null : _median(scores),
+    qualityIssue: resultQualityIssue,
     instruction:
         message ??
         switch (status) {

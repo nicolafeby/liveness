@@ -8,6 +8,7 @@ import '../core/challenge.dart';
 import '../core/color_frame.dart';
 import '../core/detector.dart';
 import '../models/liveness_result.dart';
+import '../models/liveness_quality_issue.dart';
 import '../models/liveness_status.dart';
 import 'liveness_edge_theme.dart';
 
@@ -31,6 +32,7 @@ class LivenessEdgeViewState {
     required this.progress,
     required this.isCameraReady,
     required this.hasError,
+    this.qualityIssue,
   });
 
   final LivenessStatus? status;
@@ -39,6 +41,7 @@ class LivenessEdgeViewState {
   final double progress;
   final bool isCameraReady;
   final bool hasError;
+  final LivenessQualityIssue? qualityIssue;
 }
 
 /// A full-screen, ready-to-use on-device liveness capture flow.
@@ -266,6 +269,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
 
   void _updateResult(LivenessResult next, {bool forceInstruction = false}) {
     final previousStatus = _result?.status;
+    final qualityIssueChanged = next.qualityIssue != _result?.qualityIssue;
     final instructionChanged = next.instruction != _displayedInstruction;
     final statusChanged = next.status != previousStatus;
     final distanceWarning =
@@ -273,6 +277,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
 
     if (forceInstruction ||
         statusChanged ||
+        qualityIssueChanged ||
         distanceWarning ||
         _displayedInstruction == null) {
       _displayedInstruction = next.instruction;
@@ -355,7 +360,8 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
                 _error ??
                 _displayedInstruction ??
                 widget.configuration.messages.preparingCamera;
-            final supportingText = _supportingText(status);
+            final qualityIssue = _result?.qualityIssue;
+            final supportingText = _supportingText(status, qualityIssue);
             final viewState = LivenessEdgeViewState(
               status: status,
               instruction: instruction,
@@ -363,6 +369,7 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
               progress: status == null ? 0 : _challenge.progress,
               isCameraReady: camera?.value.isInitialized ?? false,
               hasError: _error != null,
+              qualityIssue: qualityIssue,
             );
 
             return Stack(
@@ -473,9 +480,25 @@ class _LivenessEdgeScreenState extends State<LivenessEdgeScreen>
     );
   }
 
-  String _supportingText(LivenessStatus? status) {
+  String _supportingText(
+    LivenessStatus? status,
+    LivenessQualityIssue? qualityIssue,
+  ) {
     final messages = widget.configuration.messages;
     if (_error != null) return messages.cameraPermissionHelp;
+    if (qualityIssue == LivenessQualityIssue.faceObstructed) {
+      return messages.keepFullFaceVisible;
+    }
+    if (qualityIssue == LivenessQualityIssue.faceMissing) {
+      return messages.positionFaceInFrame;
+    }
+    if (qualityIssue == LivenessQualityIssue.tooDark ||
+        qualityIssue == LivenessQualityIssue.tooBright) {
+      return messages.keepFacingCamera;
+    }
+    if (qualityIssue == LivenessQualityIssue.eyesObstructed) {
+      return messages.keepFullFaceVisible;
+    }
     return switch (status) {
       null => messages.pleaseWait,
       LivenessStatus.align ||
