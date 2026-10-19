@@ -203,8 +203,9 @@ class LivenessConfiguration {
 
   /// Maximum normalized landmark distance still considered the same face.
   ///
-  /// Identity continuity is evaluated only while the face is frontal. Two
-  /// consecutive mismatches are required to avoid resets caused by noise.
+  /// Identity continuity is evaluated only while the face is frontal. A
+  /// consistent mismatch must persist for at least 750 ms and three analyzed
+  /// frames to avoid resets caused by noise.
   double get faceIdentityThreshold => faceIdentitySensitivity.threshold;
 
   /// User-facing copy used by the challenge and the ready-to-use screen.
@@ -691,8 +692,8 @@ class LivenessChallenge {
   }
 
   LivenessResult _finish() {
-    // Never pass on the first mismatching frame. A matching frame clears the
-    // pending mismatch; a second mismatch resets the challenge.
+    // Never pass while an identity mismatch is pending. Two stable matching
+    // frames clear it; a sustained, consistent mismatch resets the challenge.
     if (identityMismatches > 0) {
       return result(configuration.messages.verifyingSameFace);
     }

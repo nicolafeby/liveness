@@ -45,7 +45,7 @@ Alternatively, add it directly to `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  liveness_edge_flutter: ^0.3.0
+  liveness_edge_flutter: ^0.3.1
 ```
 
 ### Android setup
@@ -201,11 +201,19 @@ After the configured checks pass, the package waits for three stable, frontal
 frames with both eyes fully open before producing the verified JPEG.
 
 The package keeps a frozen, normalized, on-device landmark descriptor for the
-first aligned face. If a different frontal face is detected in two consecutive
-frames, the active challenge returns to alignment. A session cannot pass while
-an identity mismatch is pending. If no valid single face is detected during an
-active challenge for 1.2 seconds, the flow also returns to alignment. Before a
-challenge starts, the grace period remains two seconds.
+first aligned face. A different frontal face must remain consistent for at
+least 750 ms and three analyzed frames before the active challenge returns to
+alignment. Two stable matching frames are required to recover from a pending
+mismatch, and a session cannot pass while a mismatch is pending. If no valid
+single face or required facial landmarks are available during an active
+challenge for 500 ms, the flow also returns to alignment. Before a challenge
+starts, the single-face grace period remains two seconds.
+
+Landmark availability uses MediaPipe visibility and presence confidence when
+the model provides them, and also rejects non-finite or out-of-frame eye and
+mouth landmarks. It is an input-quality check, not general-purpose occlusion
+segmentation; applications that must detect every type of mask or obstruction
+should add a separately validated occlusion model.
 
 ### Callback behavior
 
