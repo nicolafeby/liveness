@@ -72,7 +72,12 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
         if (detected.faceLandmarks().size != 1) return mapOf("faceCount" to detected.faceLandmarks().size)
         val points=detected.faceLandmarks()[0]; val minX=points.minOf{it.x()}; val maxX=points.maxOf{it.x()}; val minY=points.minOf{it.y()}; val maxY=points.maxOf{it.y()}
         val blend=detected.faceBlendshapes().orElse(emptyList()).getOrNull(0).orEmpty().associate{it.categoryName() to it.score()}
-        fun landmarksAvailable(vararg indices:Int)=indices.all{index->index<points.size&&points[index].x().isFinite()&&points[index].y().isFinite()}
+        fun landmarksAvailable(vararg indices:Int)=indices.all{index->
+            if(index>=points.size)return@all false
+            val point=points[index];val x=point.x();val y=point.y()
+            x.isFinite()&&y.isFinite()&&x in 0f..1f&&y in 0f..1f&&
+                point.visibility().map{it>=.5f}.orElse(true)&&point.presence().map{it>=.5f}.orElse(true)
+        }
         val eyesDetected=landmarksAvailable(33,133,159,145,263,362,386,374)&&blend.containsKey("eyeBlinkLeft")&&blend.containsKey("eyeBlinkRight")
         val mouthDetected=landmarksAvailable(13,14,61,291)&&blend.containsKey("jawOpen")
         val eyeBlinkScore=maxOf(blend["eyeBlinkLeft"]?:1f,blend["eyeBlinkRight"]?:1f)

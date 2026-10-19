@@ -79,7 +79,12 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
     var blend:[String:Float]=[:]
     if let shapes=detected.faceBlendshapes.first?.categories { for item in shapes { blend[item.categoryName ?? ""] = item.score } }
     func landmarksAvailable(_ indices: [Int]) -> Bool {
-      indices.allSatisfy { $0 < points.count && points[$0].x.isFinite && points[$0].y.isFinite }
+      indices.allSatisfy {
+        guard $0 < points.count else { return false }
+        let point=points[$0],x=point.x,y=point.y
+        return x.isFinite && y.isFinite && (0...1).contains(x) && (0...1).contains(y) &&
+          (point.visibility?.doubleValue ?? 1) >= 0.5 && (point.presence?.doubleValue ?? 1) >= 0.5
+      }
     }
     let eyesDetected=landmarksAvailable([33,133,159,145,263,362,386,374]) && blend["eyeBlinkLeft"] != nil && blend["eyeBlinkRight"] != nil
     let mouthDetected=landmarksAvailable([13,14,61,291]) && blend["jawOpen"] != nil

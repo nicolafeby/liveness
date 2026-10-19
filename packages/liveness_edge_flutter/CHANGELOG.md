@@ -1,7 +1,8 @@
-## Unreleased
+## 0.3.1
 
-- Detect missing eye and mouth landmarks on Android and iOS, and show unified
-  guidance when the face is partially covered.
+- Detect unreliable or out-of-frame eye and mouth landmarks on Android and iOS,
+  and show unified guidance when required facial regions are not clearly
+  visible.
 - Tolerate sub-500 ms detector dropouts, then restart the complete verification
   when the face or required landmarks remain obscured and continuity is lost.
 - Harden same-face verification by requiring a sustained, consistent identity
