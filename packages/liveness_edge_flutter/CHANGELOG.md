@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Process sequential camera frames with MediaPipe video mode on Android and
+  iOS, enabling inter-frame landmark tracking without changing liveness rules
+  or the Flutter API.
 - Preserve the display-oriented BGRA and bi-planar YUV coordinates delivered
   by camera_avfoundation so iOS face-position guidance does not swap axes.
 - Match Android horizontal face-position guidance to the mirrored front-camera
