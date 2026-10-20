@@ -6,7 +6,7 @@ import 'package:liveness_edge_flutter/src/core/color_frame.dart';
 import 'package:image/image.dart' as img;
 
 void main() {
-  test('encodes iOS BGRA frames as upright BGR', () {
+  test('preserves display-oriented iOS BGRA coordinates', () {
     const width = 100;
     const height = 120;
     final bytes = Uint8List(width * height * 4);
@@ -30,7 +30,7 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  test('does not rotate display-oriented iOS BGRA frames a second time', () {
+  test('does not rotate display-oriented landscape iOS BGRA coordinates', () {
     const sourceWidth = 120;
     const sourceHeight = 100;
     final bytes = Uint8List(sourceWidth * sourceHeight * 4);
@@ -52,6 +52,30 @@ void main() {
 
     expect(width, sourceWidth);
     expect(height, sourceHeight);
+    expect(output.sublist(8, 11), [10, 20, 30]);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  test('does not rotate portrait iOS BGRA coordinates', () {
+    const sourceWidth = 100;
+    const sourceHeight = 120;
+    final bytes = Uint8List(sourceWidth * sourceHeight * 4);
+    bytes.setRange(0, 4, [10, 20, 30, 255]);
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    // ignore: deprecated_member_use
+    final frame = CameraImage.fromPlatformData({
+      'format': 1111970369,
+      'width': sourceWidth,
+      'height': sourceHeight,
+      'planes': [
+        {'bytes': bytes, 'bytesPerRow': sourceWidth * 4, 'bytesPerPixel': 4},
+      ],
+    });
+
+    final output = encodeColorFrame(frame, 90, DeviceOrientation.portraitUp);
+
+    expect((output[4] << 8) | output[5], sourceWidth);
+    expect((output[6] << 8) | output[7], sourceHeight);
     expect(output.sublist(8, 11), [10, 20, 30]);
     debugDefaultTargetPlatformOverride = null;
   });
@@ -111,6 +135,34 @@ void main() {
       255,
     ]);
     expect(output.sublist(8, 11), [0, 0, 0]);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  test('preserves display-oriented iOS bi-planar YUV coordinates', () {
+    const sourceWidth = 100;
+    const sourceHeight = 120;
+    final y = Uint8List(sourceWidth * sourceHeight)
+      ..fillRange(0, sourceWidth * sourceHeight, 16);
+    final uv = Uint8List(sourceWidth * sourceHeight ~/ 2)
+      ..fillRange(0, sourceWidth * sourceHeight ~/ 2, 128);
+    y[0] = 235;
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    // ignore: deprecated_member_use
+    final frame = CameraImage.fromPlatformData({
+      'format': 875704438,
+      'width': sourceWidth,
+      'height': sourceHeight,
+      'planes': [
+        {'bytes': y, 'bytesPerRow': sourceWidth, 'bytesPerPixel': 1},
+        {'bytes': uv, 'bytesPerRow': sourceWidth, 'bytesPerPixel': 2},
+      ],
+    });
+
+    final output = encodeColorFrame(frame, 90, DeviceOrientation.portraitUp);
+
+    expect((output[4] << 8) | output[5], sourceWidth);
+    expect((output[6] << 8) | output[7], sourceHeight);
+    expect(output.sublist(8, 11), [255, 255, 255]);
     debugDefaultTargetPlatformOverride = null;
   });
 

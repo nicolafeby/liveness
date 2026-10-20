@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 
@@ -14,10 +15,20 @@ Uint8List encodeColorFrame(
   int sensorOrientation,
   DeviceOrientation deviceOrientation,
 ) {
-  final rotation =
-      (sensorOrientation +
-          (deviceOrientation == DeviceOrientation.portraitDown ? 180 : 0)) %
-      360;
+  final deviceRotation = switch (deviceOrientation) {
+    DeviceOrientation.portraitUp => 0,
+    DeviceOrientation.landscapeLeft => 90,
+    DeviceOrientation.portraitDown => 180,
+    DeviceOrientation.landscapeRight => 270,
+  };
+  final sensorDeviceRotation = (sensorOrientation + deviceRotation) % 360;
+  // CameraX exposes Android buffers in sensor coordinates. In contrast,
+  // camera_avfoundation applies the AVCaptureConnection orientation before
+  // delivering both BGRA and bi-planar YUV stream buffers. Rotating those iOS
+  // buffers by either 90 or 270 degrees swaps the alignment X/Y axes.
+  final rotation = defaultTargetPlatform == TargetPlatform.iOS
+      ? 0
+      : sensorDeviceRotation;
   if (!{0, 90, 180, 270}.contains(rotation) ||
       frame.width < 100 ||
       frame.height < 100) {
@@ -26,10 +37,7 @@ Uint8List encodeColorFrame(
     );
   }
   if (frame.format.group == ImageFormatGroup.bgra8888) {
-    // camera_avfoundation applies AVCaptureConnection.videoOrientation before
-    // delivering BGRA image-stream buffers. They are already display-oriented;
-    // applying sensorOrientation again would rotate the final JPEG sideways.
-    return _encodeBgraFrame(frame, 0);
+    return _encodeBgraFrame(frame, rotation);
   }
   if (frame.format.group != ImageFormatGroup.yuv420 &&
       frame.format.group != ImageFormatGroup.nv21) {

@@ -1,3 +1,8 @@
+## Unreleased
+
+- Preserve the display-oriented BGRA and bi-planar YUV coordinates delivered
+  by camera_avfoundation so iOS face-position guidance does not swap axes.
+
 ## 0.3.1
 
 - Detect unreliable or out-of-frame eye and mouth landmarks on Android and iOS,
