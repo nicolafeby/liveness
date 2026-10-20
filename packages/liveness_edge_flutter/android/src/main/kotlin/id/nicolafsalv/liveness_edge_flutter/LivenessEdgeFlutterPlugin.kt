@@ -86,7 +86,14 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
         val mouthOpenScore=blend["jawOpen"]?:0f
         val left=points[33]; val right=points[263]; val nose=points[1]; val dx=right.x()-left.x(); val dy=right.y()-left.y()
         val offset=((nose.x()-(left.x()+right.x())/2)*dx+(nose.y()-(left.y()+right.y())/2)*dy)/(dx*dx+dy*dy)
-        return mapOf("faceCount" to 1,"eyesDetected" to eyesDetected,"mouthDetected" to mouthDetected,"eyesOpen" to eyesOpen,"eyeBlinkScore" to eyeBlinkScore.toDouble(),"faceCenterX" to ((minX+maxX)/2).toDouble(),"faceCenterY" to ((minY+maxY)/2).toDouble(),
+        // CameraPreview mirrors the Android front camera, while MediaPipe
+        // reports landmarks in the unmirrored image-stream coordinates. Mirror
+        // only the horizontal center used by alignment guidance so its text
+        // directs the face toward the center of the preview. Yaw keeps its raw
+        // convention because the active head-turn challenge is already mapped
+        // to the user's physical left and right.
+        val previewCenterX=1f-(minX+maxX)/2
+        return mapOf("faceCount" to 1,"eyesDetected" to eyesDetected,"mouthDetected" to mouthDetected,"eyesOpen" to eyesOpen,"eyeBlinkScore" to eyeBlinkScore.toDouble(),"faceCenterX" to previewCenterX.toDouble(),"faceCenterY" to ((minY+maxY)/2).toDouble(),
             "faceWidth" to (maxX-minX).toDouble(),"faceHeight" to (maxY-minY).toDouble(),"lighting" to lighting(bitmap,minX,minY,maxX,maxY),
             "yaw" to Math.toDegrees(atan2((2*offset).toDouble(),1.0)),"smileScore" to smileScore.toDouble(),
             "mouthOpenScore" to mouthOpenScore.toDouble(),"liveScore" to passive(bitmap,minX,minY,maxX,maxY),

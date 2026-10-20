@@ -2,6 +2,8 @@
 
 - Preserve the display-oriented BGRA and bi-planar YUV coordinates delivered
   by camera_avfoundation so iOS face-position guidance does not swap axes.
+- Match Android horizontal face-position guidance to the mirrored front-camera
+  preview without changing head-turn challenge directions.
 
 ## 0.3.1
 
