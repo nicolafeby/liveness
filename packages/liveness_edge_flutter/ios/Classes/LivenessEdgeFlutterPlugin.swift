@@ -8,6 +8,7 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
   private var landmarker: FaceLandmarker?
   private var environment: ORTEnv?
   private var antiSpoof: ORTSession?
+  private var lastFrameTimestampMs = -1
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(name: "liveness_edge_flutter", binaryMessenger: registrar.messenger())
@@ -48,7 +49,7 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
     if landmarker != nil { return }
     let options = FaceLandmarkerOptions()
     options.baseOptions.modelAssetPath = try asset("face_landmarker", "task")
-    options.runningMode = .image
+    options.runningMode = .video
     options.numFaces = 2
     options.outputFaceBlendshapes = true
     landmarker = try FaceLandmarker(options: options)
@@ -72,7 +73,16 @@ public class LivenessEdgeFlutterPlugin: NSObject, FlutterPlugin {
       bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width*4, space: color,
       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue), provider: provider,
       decode: nil, shouldInterpolate: false, intent: .defaultIntent) else { throw edge("The frame could not be read") }
-    let detected = try landmarker!.detect(image: MPImage(uiImage: UIImage(cgImage: cg)))
+    // VIDEO mode reuses tracking information between the sequential camera
+    // frames. systemUptime is monotonic across wall-clock changes, and the
+    // increment protects MediaPipe's strictly increasing timestamp requirement
+    // when two frames happen to arrive within one millisecond.
+    let nowMs = Int(ProcessInfo.processInfo.systemUptime * 1000)
+    let timestampMs = max(nowMs, lastFrameTimestampMs + 1)
+    lastFrameTimestampMs = timestampMs
+    let detected = try landmarker!.detect(
+      videoFrame: MPImage(uiImage: UIImage(cgImage: cg)),
+      timestampInMilliseconds: timestampMs)
     guard detected.faceLandmarks.count == 1 else { return ["faceCount": detected.faceLandmarks.count] }
     let points = detected.faceLandmarks[0]
     let minX=points.map{$0.x}.min()!, maxX=points.map{$0.x}.max()!, minY=points.map{$0.y}.min()!, maxY=points.map{$0.y}.max()!

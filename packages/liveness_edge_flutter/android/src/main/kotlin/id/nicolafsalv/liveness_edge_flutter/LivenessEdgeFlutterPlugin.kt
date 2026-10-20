@@ -5,6 +5,7 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
 import android.graphics.Bitmap
+import android.os.SystemClock
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
@@ -27,6 +28,7 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
     private var landmarker: FaceLandmarker? = null
     private var environment: OrtEnvironment? = null
     private var antiSpoof: OrtSession? = null
+    private var lastFrameTimestampMs = -1L
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
@@ -54,7 +56,7 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
         if (landmarker != null) return
         landmarker = FaceLandmarker.createFromOptions(context, FaceLandmarker.FaceLandmarkerOptions.builder()
             .setBaseOptions(BaseOptions.builder().setModelAssetPath("face_landmarker.task").build())
-            .setRunningMode(RunningMode.IMAGE).setNumFaces(2).setOutputFaceBlendshapes(true).build())
+            .setRunningMode(RunningMode.VIDEO).setNumFaces(2).setOutputFaceBlendshapes(true).build())
         environment = OrtEnvironment.getEnvironment()
         antiSpoof = environment!!.createSession(context.assets.open("minifasnet_v2.onnx").use { it.readBytes() }, OrtSession.SessionOptions())
     }
@@ -68,7 +70,14 @@ class LivenessEdgeFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler
         val pixels = IntArray(width * height); var p = 8
         for (i in pixels.indices) { val b=data[p++].toInt()and 255; val g=data[p++].toInt()and 255; val r=data[p++].toInt()and 255; pixels[i]=-0x1000000 or(r shl 16)or(g shl 8)or b }
         val bitmap = Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
-        val detected = landmarker!!.detect(BitmapImageBuilder(bitmap).build())
+        // VIDEO mode reuses tracking information between the sequential camera
+        // frames. elapsedRealtime is monotonic across wall-clock changes, and
+        // the increment protects MediaPipe's strictly increasing timestamp
+        // requirement when two frames happen to arrive within one millisecond.
+        val nowMs = SystemClock.elapsedRealtime()
+        val timestampMs = maxOf(nowMs, lastFrameTimestampMs + 1)
+        lastFrameTimestampMs = timestampMs
+        val detected = landmarker!!.detectForVideo(BitmapImageBuilder(bitmap).build(), timestampMs)
         if (detected.faceLandmarks().size != 1) return mapOf("faceCount" to detected.faceLandmarks().size)
         val points=detected.faceLandmarks()[0]; val minX=points.minOf{it.x()}; val maxX=points.maxOf{it.x()}; val minY=points.minOf{it.y()}; val maxY=points.maxOf{it.y()}
         val blend=detected.faceBlendshapes().orElse(emptyList()).getOrNull(0).orEmpty().associate{it.categoryName() to it.score()}
