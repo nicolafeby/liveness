@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.2
 
 - Process sequential camera frames with MediaPipe video mode on Android and
   iOS, enabling inter-frame landmark tracking without changing liveness rules

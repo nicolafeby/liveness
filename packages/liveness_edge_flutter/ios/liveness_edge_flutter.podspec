@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'liveness_edge_flutter'
-  s.version          = '0.3.1'
+  s.version          = '0.3.2'
   s.summary          = 'Private on-device face-liveness verification for Flutter.'
   s.description      = <<-DESC
 MediaPipe face landmarks and ONNX Runtime anti-spoofing, entirely on device.
